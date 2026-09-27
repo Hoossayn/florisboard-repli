@@ -17,7 +17,6 @@
 package dev.patrickgold.florisboard.ime.nlp
 
 import android.content.Context
-import android.os.SystemClock
 import android.util.LruCache
 import androidx.lifecycle.MutableLiveData
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
@@ -31,6 +30,7 @@ import dev.patrickgold.florisboard.ime.editor.EditorRange
 import dev.patrickgold.florisboard.ime.media.emoji.EmojiSuggestionProvider
 import dev.patrickgold.florisboard.ime.nlp.han.HanShapeBasedLanguageProvider
 import dev.patrickgold.florisboard.ime.nlp.latin.LatinLanguageProvider
+import dev.patrickgold.florisboard.ime.nlp.latin.TypingPredictionPolicy
 import dev.patrickgold.florisboard.keyboardManager
 import dev.patrickgold.florisboard.lib.util.NetworkUtils
 import dev.patrickgold.florisboard.subtypeManager
@@ -47,6 +47,7 @@ import org.florisboard.lib.kotlin.guardedByLock
 import org.florisboard.lib.kotlin.collectLatestIn
 import java.util.concurrent.atomic.AtomicBoolean
 import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import kotlin.properties.Delegates
 
 private const val BLANK_STR_PATTERN = "^\\s*$"
@@ -73,7 +74,8 @@ class NlpManager(context: Context) {
     private val providersForceSuggestionOn = mutableMapOf<String, Boolean>()
 
     private val internalSuggestionsGuard = Mutex()
-    private var internalSuggestions by Delegates.observable(SystemClock.uptimeMillis() to listOf<SuggestionCandidate>()) { _, _, _ ->
+    private val suggestionRequestId = AtomicLong(0)
+    private var internalSuggestions by Delegates.observable(0L to listOf<SuggestionCandidate>()) { _, _, _ ->
         scope.launch { assembleCandidates() }
     }
 
@@ -197,7 +199,10 @@ class NlpManager(context: Context) {
             || providerForcesSuggestionOn(subtypeManager.activeSubtype)
 
     fun suggest(subtype: Subtype, content: EditorContent) {
-        val reqTime = SystemClock.uptimeMillis()
+        val reqTime = suggestionRequestId.incrementAndGet()
+        val wordSuggestionsAllowed =
+            (subtype.primaryLocale.language != "en" || TypingPredictionPolicy.allows(editorInstance.activeInfo)) &&
+                (prefs.suggestion.enabled.get() || providerForcesSuggestionOn(subtype))
         scope.launch {
             val emojiSuggestions = when {
                 prefs.emoji.suggestionEnabled.get() -> {
@@ -212,6 +217,7 @@ class NlpManager(context: Context) {
                 else -> emptyList()
             }
             val suggestions = when {
+                !wordSuggestionsAllowed -> emptyList()
                 emojiSuggestions.isNotEmpty() && prefs.emoji.suggestionType.get().prefix.isNotEmpty() -> {
                     emptyList()
                 }
@@ -237,21 +243,27 @@ class NlpManager(context: Context) {
     }
 
     fun suggestDirectly(suggestions: List<SuggestionCandidate>) {
-        val reqTime = SystemClock.uptimeMillis()
+        val reqTime = suggestionRequestId.incrementAndGet()
         runBlocking {
             internalSuggestions = reqTime to suggestions
         }
     }
 
     fun clearSuggestions() {
-        val reqTime = SystemClock.uptimeMillis()
+        val reqTime = suggestionRequestId.incrementAndGet()
         runBlocking {
             internalSuggestions = reqTime to emptyList()
         }
     }
 
     fun getAutoCommitCandidate(): SuggestionCandidate? {
-        return activeCandidates.firstOrNull { it.isEligibleForAutoCommit }
+        val content = editorInstance.activeContent
+        return activeCandidates.firstOrNull { candidate ->
+            candidate.isEligibleForAutoCommit &&
+                (candidate !is WordSuggestionCandidate || candidate.sourceText == null ||
+                    (TypingPredictionPolicy.allows(editorInstance.activeInfo) &&
+                        content.selection.isCursorMode && content.composingText == candidate.sourceText))
+        }
     }
 
     fun removeSuggestion(subtype: Subtype, candidate: SuggestionCandidate): Boolean {

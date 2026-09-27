@@ -34,6 +34,7 @@ import dev.patrickgold.florisboard.ime.input.InputShiftState
 import dev.patrickgold.florisboard.ime.keyboard.IncognitoMode
 import dev.patrickgold.florisboard.ime.keyboard.KeyboardMode
 import dev.patrickgold.florisboard.ime.nlp.SuggestionCandidate
+import dev.patrickgold.florisboard.ime.nlp.latin.TypingPredictionPolicy
 import dev.patrickgold.florisboard.ime.text.composing.Appender
 import dev.patrickgold.florisboard.ime.text.composing.Composer
 import dev.patrickgold.florisboard.ime.text.key.KeyVariation
@@ -138,7 +139,8 @@ class EditorInstance(context: Context) : AbstractEditorInstance(context) {
     }
 
     override fun determineComposingEnabled(): Boolean {
-        return nlpManager.isSuggestionOn()
+        return nlpManager.isSuggestionOn() &&
+            (subtypeManager.activeSubtype.primaryLocale.language != "en" || TypingPredictionPolicy.allows(activeInfo))
     }
 
     override fun determineComposer(composerName: ExtensionComponentName): Composer {

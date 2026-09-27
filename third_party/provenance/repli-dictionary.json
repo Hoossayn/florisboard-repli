@@ -1,0 +1,13 @@
+{
+  "artifact": "app/src/main/assets/ime/dict/repli-en_us.dict",
+  "sha256": "8ab23ce2da781e1d3f15e665d6cba07080a02a211d76eadd9ff6cd299f9fc2b3",
+  "source": "https://codeberg.org/Helium314/aosp-dictionaries",
+  "revision": "55e6d1c64ad72481d5615113b1c94f0716617016",
+  "license": "GPL-3.0",
+  "copied_from": "Repli app/src/main/assets/dictionaries/en_us.dict",
+  "license_text": [
+    "third_party/licenses/GPL-3.0.txt",
+    "app/src/main/assets/ime/dict/LICENSE-GPL-3.0.txt"
+  ],
+  "note": "The word list is shipped in source form and loaded by Repli's offline keyboard lexicon."
+}

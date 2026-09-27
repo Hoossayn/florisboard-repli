@@ -53,13 +53,20 @@ fun ProjectLicenseScreen() = FlorisScreen {
                     .florisVerticalScroll()
                     .florisHorizontalScroll(),
             ) {
-                val licenseText = FlorisRef.assets("license/project_license.txt").loadTextAsset(
+                val projectLicense = FlorisRef.assets("license/project_license.txt").loadTextAsset(
+                    context
+                ).getOrElse {
+                    stringRes(R.string.about__project_license__error_license_text_failed, "error_message" to (it.message ?: ""))
+                }
+                val dictionaryLicense = FlorisRef.assets("ime/dict/LICENSE-GPL-3.0.txt").loadTextAsset(
                     context
                 ).getOrElse {
                     stringRes(R.string.about__project_license__error_license_text_failed, "error_message" to (it.message ?: ""))
                 }
                 Text(
-                    text = licenseText,
+                    text = "FlorisBoard source — Apache-2.0\n\n$projectLicense\n\n" +
+                        "Bundled English dictionary — GPL-3.0\n" +
+                        "Source: https://codeberg.org/Helium314/aosp-dictionaries\n\n$dictionaryLicense",
                     fontFamily = FontFamily.Monospace,
                     fontSize = 10.sp,
                     softWrap = false,

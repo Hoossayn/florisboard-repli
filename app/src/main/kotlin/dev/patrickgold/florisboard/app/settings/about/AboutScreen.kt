@@ -116,7 +116,7 @@ fun AboutScreen() = FlorisScreen {
         Preference(
             icon = Icons.Outlined.Description,
             title = stringRes(R.string.about__project_license__title),
-            summary = stringRes(R.string.about__project_license__summary, "license_name" to "Apache 2.0"),
+            summary = stringRes(R.string.about__project_license__summary, "license_name" to "Apache 2.0 + GPL-3.0 dictionary"),
             onClick = { navController.navigate(Routes.Settings.ProjectLicense) },
         )
         Preference(

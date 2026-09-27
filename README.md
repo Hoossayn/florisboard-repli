@@ -7,6 +7,21 @@ src=".github/repo_icon.png" alt="App icon">
 devices. It aims at being modern, user-friendly and customizable while
 fully respecting your privacy. Currently in beta state.
 
+> [!NOTE]
+> The `codex/repli-suggestions` branch is an experimental Repli keyboard base built from
+> FlorisBoard `v0.5.2`. It connects Repli's offline English word predictions and conservative
+> autocorrection to FlorisBoard's active keyboard input path. The `main` branch follows upstream's
+> newer alpha code, whose input architecture differs from this stable release.
+
+The English word list is sourced from
+[Helium314/aosp-dictionaries](https://codeberg.org/Helium314/aosp-dictionaries) under GPL-3.0.
+Its exact revision, hash, source form, and license text are in
+[`third_party/provenance/repli-dictionary.json`](third_party/provenance/repli-dictionary.json)
+and [`app/src/main/assets/ime/dict`](app/src/main/assets/ime/dict).
+This branch currently uses the bundled word list without adaptive learning. It has not yet been
+verified on a physical device or released as an APK. The source word list has no offensive-term
+labels, so this branch does not offer FlorisBoard's offensive-word filtering switch.
+
 <table>
 <tr>
 <th style="text-align: center; width: 50%">
@@ -76,8 +91,8 @@ Beginning with v0.7 FlorisBoard will enter the public beta on Google Play.
 - Emoji keyboard / history / suggestions
 
 > [!IMPORTANT]
-> Word suggestions/spell checking are not included in the current releases
-> and are a major goal for the v0.6 milestone.
+> Official FlorisBoard releases do not yet include word suggestions/spell checking. This branch
+> adds English suggestions and a bundled English spell checker as an experimental integration.
 
 Feature roadmap: See [ROADMAP.md](ROADMAP.md)
 

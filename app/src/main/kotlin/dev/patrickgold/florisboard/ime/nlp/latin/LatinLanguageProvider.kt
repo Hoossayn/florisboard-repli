@@ -24,6 +24,10 @@ import dev.patrickgold.florisboard.ime.nlp.SpellingProvider
 import dev.patrickgold.florisboard.ime.nlp.SpellingResult
 import dev.patrickgold.florisboard.ime.nlp.SuggestionCandidate
 import dev.patrickgold.florisboard.ime.nlp.SuggestionProvider
+import dev.patrickgold.florisboard.ime.nlp.WordSuggestionCandidate
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.BundledKeyboardLexicon
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.TypingContext
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.WordPredictionEngine
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -44,6 +48,8 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
 
     private val wordData = guardedByLock { mutableMapOf<String, Int>() }
     private val wordDataSerializer = MapSerializer(String.serializer(), Int.serializer())
+    private val predictionEngine = WordPredictionEngine()
+    @Volatile private var predictionLexicon: BundledKeyboardLexicon? = null
 
     override val providerId = ProviderId
 
@@ -68,6 +74,15 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
         // The subtype we get here contains a lot of data, however we are only interested in subtype.primaryLocale and
         // subtype.secondaryLocales.
 
+        if (subtype.primaryLocale.language == "en" && predictionLexicon == null) {
+            synchronized(predictionEngine) {
+                if (predictionLexicon == null) {
+                    val loaded = appContext.assets.open("ime/dict/repli-en_us.dict").use(BundledKeyboardLexicon::load)
+                    predictionEngine.installLexicon(loaded)
+                    predictionLexicon = loaded
+                }
+            }
+        }
         wordData.withLock { wordData ->
             if (wordData.isEmpty()) {
                 // Here we use readText() because the test dictionary is a json dictionary
@@ -87,15 +102,14 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
         allowPossiblyOffensive: Boolean,
         isPrivateSession: Boolean,
     ): SpellingResult {
-        return when (word.lowercase()) {
-            // Use typo for typing errors
-            "typo" -> SpellingResult.typo(arrayOf("typo1", "typo2", "typo3"))
-            // Use grammar error if the algorithm can detect this. On Android 11 and lower grammar errors are visually
-            // marked as typos due to a lack of support
-            "gerror" -> SpellingResult.grammarError(arrayOf("grammar1", "grammar2", "grammar3"))
-            // Use valid word for valid input
-            else -> SpellingResult.validWord()
+        val lexicon = predictionLexicon
+        if (subtype.primaryLocale.language != "en" || lexicon == null) return SpellingResult.unspecified()
+        if (lexicon.contains(word) || WordPredictionEngine.isProtectedDialectWord(word)) {
+            return SpellingResult.validWord()
         }
+        val corrections = lexicon.corrections(word, maxSuggestionCount.coerceAtLeast(0))
+        return if (corrections.isEmpty()) SpellingResult.unspecified()
+        else SpellingResult.typo(corrections.map { it.word }.toTypedArray())
     }
 
     override suspend fun suggest(
@@ -105,21 +119,41 @@ class LatinLanguageProvider(context: Context) : SpellingProvider, SuggestionProv
         allowPossiblyOffensive: Boolean,
         isPrivateSession: Boolean,
     ): List<SuggestionCandidate> {
-        return emptyList()
-        /*val word = content.composingText.ifBlank { "next" }
-        val suggestions = buildList {
-            for (n in 0 until maxCandidateCount) {
+        if (subtype.primaryLocale.language != "en" || maxCandidateCount <= 0 ||
+            !content.selection.isCursorMode) return emptyList()
+        val before = content.textBeforeSelection.takeLast(WordPredictionEngine.BEFORE_LIMIT)
+        val after = content.textAfterSelection.take(WordPredictionEngine.AFTER_LIMIT)
+        // FlorisBoard's completion API replaces only the composing word before the cursor.
+        if (after.firstOrNull()?.let { it.isLetter() || it == '\'' || it == '’' } == true) return emptyList()
+        val cursor = content.selection.start
+        val context = TypingContext(before, after, cursor, cursor)
+        val typedWord = before.takeLastWhile { it.isLetter() || it == '\'' || it == '’' }
+        val correction = predictionEngine.autocorrection(context)
+            ?.takeIf { it.removeBefore == typedWord.length && content.composingText == typedWord }
+        val predictions = predictionEngine.suggest(context)
+        return buildList {
+            if (correction != null) {
                 add(WordSuggestionCandidate(
-                    text = "$word$n",
-                    secondaryText = if (n % 2 == 1) "secondary" else null,
-                    confidence = 0.5,
-                    isEligibleForAutoCommit = false,//n == 0 && word.startsWith("auto"),
-                    // We set ourselves as the source provider so we can get notify events for our candidate
+                    text = correction.word,
+                    confidence = 1.0,
+                    isEligibleForAutoCommit = true,
+                    isEligibleForUserRemoval = false,
                     sourceProvider = this@LatinLanguageProvider,
+                    sourceText = typedWord,
                 ))
             }
-        }
-        return suggestions*/
+            for (prediction in predictions) {
+                if (size >= maxCandidateCount) break
+                if (any { it.text.toString().equals(prediction.word, ignoreCase = true) }) continue
+                add(WordSuggestionCandidate(
+                    text = prediction.word,
+                    confidence = if (prediction.correction) 0.75 else 0.5,
+                    isEligibleForUserRemoval = false,
+                    sourceProvider = this@LatinLanguageProvider,
+                    sourceText = typedWord,
+                ))
+            }
+        }.take(maxCandidateCount)
     }
 
     override suspend fun notifySuggestionAccepted(subtype: Subtype, candidate: SuggestionCandidate) {

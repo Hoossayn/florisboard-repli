@@ -111,6 +111,8 @@ data class WordSuggestionCandidate(
     override val isEligibleForAutoCommit: Boolean = false,
     override val isEligibleForUserRemoval: Boolean = true,
     override val sourceProvider: SuggestionProvider? = null,
+    /** Original composing word for validating an asynchronous auto-correction before commit. */
+    val sourceText: String? = null,
 ) : SuggestionCandidate {
     override val icon: ImageVector? = null
 }

@@ -26,6 +26,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import dev.patrickgold.florisboard.repli.capture.ConversationTurn
 import dev.patrickgold.florisboard.repli.capture.ReplyCaptureSession
+import dev.patrickgold.florisboard.repli.capture.ReplyConversation
 import dev.patrickgold.florisboard.repli.capture.ReplyPhase
 import dev.patrickgold.florisboard.repli.capture.ReviewEvidenceStore
 import dev.patrickgold.florisboard.repli.capture.TurnSource
@@ -47,7 +48,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
         requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
         val state = ReplyCaptureSession.state.value
         val payload = ReviewPayload.from(intent, state?.turns.orEmpty())
-        if (requestId.isBlank() || state?.id != requestId || state.phase != ReplyPhase.APPROVAL || payload == null) {
+        if (requestId.isBlank() || state?.id != requestId || state.phase !in setOf(ReplyPhase.REVIEW, ReplyPhase.APPROVAL) || payload == null) {
             FullScreenContextReviewSession.end(requestId)
             finish()
             return
@@ -284,14 +285,19 @@ class FullScreenContextReviewActivity : ComponentActivity() {
     private fun saveOrReturn() {
         if (!edits.changed) { returnToKeyboard(); return }
         val current = ReplyCaptureSession.state.value
-        if (current?.id != requestId || current.phase != ReplyPhase.APPROVAL) {
+        if (current?.id != requestId || current.phase !in setOf(ReplyPhase.REVIEW, ReplyPhase.APPROVAL)) {
             FullScreenContextReviewSession.end(requestId)
             finish()
             return
         }
         ReplyCaptureSession.update(requestId) {
-            it.copy(turns = edits.turns, phase = ReplyPhase.CONTEXT, replies = emptyList(),
-                message = "Preparing corrected context review…")
+            it.copy(
+                turns = edits.turns,
+                phase = if (it.phase == ReplyPhase.REVIEW) ReplyPhase.REVIEW else ReplyPhase.CONTEXT,
+                replies = emptyList(),
+                message = if (it.phase == ReplyPhase.REVIEW) "Review corrected context, then generate replies"
+                    else "Preparing corrected context review…",
+            )
         }
         returnToKeyboard()
     }
@@ -346,7 +352,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
         val texts = saved.getStringArrayList(SAVED_TEXTS) ?: return null
         val speakers = saved.getBooleanArray(SAVED_SPEAKERS) ?: return null
         val sources = saved.getIntArray(SAVED_SOURCES) ?: return null
-        if (texts.isEmpty() || texts.size > RemoteReplyPrivacyPolicy.MAX_CONTEXT_TURNS ||
+        if (texts.isEmpty() || texts.size > ReplyConversation.MAX_TURNS ||
             speakers.size != texts.size || sources.size != texts.size * 6 ||
             texts.any { it.isBlank() || it.length > RemoteReplyPrivacyPolicy.MAX_CONTEXT_CHARACTERS }
         ) return null
@@ -372,7 +378,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
                 val texts = intent.getStringArrayListExtra(EXTRA_CONTEXT_TEXTS) ?: return null
                 val speakers = intent.getBooleanArrayExtra(EXTRA_CONTEXT_SPEAKERS) ?: return null
                 if (texts.isEmpty() || texts.size != speakers.size ||
-                    texts.size > RemoteReplyPrivacyPolicy.MAX_CONTEXT_TURNS
+                    texts.size > ReplyConversation.MAX_TURNS
                 ) return null
                 val alignedSources = sourceTurns.takeLast(texts.size)
                 val messages = texts.mapIndexed { index, text ->
@@ -456,6 +462,22 @@ class FullScreenContextReviewActivity : ComponentActivity() {
         private const val SAVED_SPEAKERS = "saved_speakers"
         private const val SAVED_SOURCES = "saved_sources"
         private const val SAVED_EXPANDED_INDEX = "saved_expanded_index"
+
+        fun intent(
+            context: Context,
+            requestId: String,
+            turns: List<ConversationTurn>,
+            instructions: String?,
+            preset: String,
+        ) = Intent(context, FullScreenContextReviewActivity::class.java).apply {
+            putExtra(EXTRA_REQUEST_ID, requestId)
+            putStringArrayListExtra(EXTRA_CONTEXT_TEXTS, ArrayList(turns.map { it.text }))
+            putExtra(EXTRA_CONTEXT_SPEAKERS, turns.map(ConversationTurn::fromMe).toBooleanArray())
+            putExtra(EXTRA_PRESET, preset)
+            putStringArrayListExtra(EXTRA_EXAMPLES, arrayListOf())
+            putExtra(EXTRA_INSTRUCTIONS, instructions)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY)
+        }
 
         fun intent(context: Context, requestId: String, request: PreparedRemoteReplyRequest) =
             Intent(context, FullScreenContextReviewActivity::class.java).apply {

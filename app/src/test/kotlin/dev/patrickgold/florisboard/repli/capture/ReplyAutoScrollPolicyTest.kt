@@ -20,7 +20,8 @@ class ReplyManualCapturePolicyTest {
     }
 
     @Test fun `explicit page capture remains bounded by time and frame count`() {
-        assertEquals(ManualCaptureDecision.TIME_LIMIT, ReplyManualCapturePolicy.afterFrame(2, 10, 60_000))
+        assertEquals(ManualCaptureDecision.CONTINUE, ReplyManualCapturePolicy.afterFrame(2, 10, 60_000))
+        assertEquals(ManualCaptureDecision.TIME_LIMIT, ReplyManualCapturePolicy.afterFrame(2, 10, 180_000))
         assertEquals(ManualCaptureDecision.FRAME_LIMIT, ReplyManualCapturePolicy.afterFrame(4, 15, 6_000))
     }
 

@@ -10,7 +10,7 @@ enum class ManualCaptureDecision {
 
 /** Bounds the user-started, explicitly selected page-capture window. */
 object ReplyManualCapturePolicy {
-    const val MAX_DURATION_MS = 60_000L
+    const val MAX_DURATION_MS = 180_000L
     const val MAX_FRAMES = 4
 
     fun afterFrame(

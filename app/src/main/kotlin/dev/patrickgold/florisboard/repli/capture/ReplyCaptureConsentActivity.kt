@@ -4,6 +4,7 @@ import android.Manifest
 import android.app.AlertDialog
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.graphics.Color
 import android.media.projection.MediaProjectionConfig
 import android.media.projection.MediaProjectionManager
 import android.os.Build
@@ -12,7 +13,6 @@ import android.os.SystemClock
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.result.contract.ActivityResultContracts
-import dev.patrickgold.florisboard.repli.data.AutoScrollPreferences
 
 /** A short-lived translucent permission host, launched by an explicit IME tap.
  * Finishing returns to the existing chat instead of opening another chat app. */
@@ -63,34 +63,40 @@ class ReplyCaptureConsentActivity : ComponentActivity() {
         if (preferences.getBoolean("disclosure_accepted", false)) confirmCaptureOrder()
         else AlertDialog.Builder(this)
             .setTitle("Read this chat to suggest replies")
-            .setMessage("Repli closes its keyboard and captures the current chat view first. For multiple pages, begin on the oldest page you want to share, then move only toward newer messages. Keep a little overlap and tap Capture view for each next page. Repli preserves exactly that capture order and never rearranges pages. Tap Done when you have enough; an empty chat finishes on the first view. Android will ask you to allow screen sharing.\n\nRepli never writes captured images to device storage. If cloud replies are enabled, the bounded image sequence is sent for AI reading as explained in Settings → Privacy & FAQ; otherwise text recognition stays on your phone. Captured context clears when you leave the conversation or tap Clear.\n\nOnly visible pages you capture are included. You can review the text and correct who said what before inserting a reply. Screen sharing stops as soon as capture finishes.")
+            .setMessage("Repli closes its keyboard and captures the current chat view first. For multiple pages, begin on the oldest page you want to share, then move only toward newer messages. Keep a little overlap and tap Capture view on the guided overlay or Repli notification for each next page. Repli preserves exactly that capture order and never rearranges pages. Tap Done when you have enough; an empty chat finishes on the first view. Android will ask you to allow screen sharing.\n\nRepli never writes captured images to device storage. If cloud replies are enabled, the bounded image sequence is sent for AI reading as explained in Settings → Privacy & FAQ; otherwise text recognition stays on your phone. Captured context clears when you leave the conversation or tap Clear.\n\nOnly visible pages you capture are included. You can review the text and correct who said what before inserting a reply. Screen sharing stops as soon as capture finishes.")
             .setPositiveButton("Continue") { _, _ ->
                 preferences.edit().putBoolean("disclosure_accepted", true).apply()
                 confirmCaptureOrder()
             }
             .setNegativeButton("Not now") { _, _ -> cancelCapture("Capture cancelled. Nothing was read.") }
             .setOnCancelListener { cancelCapture("Capture cancelled. Nothing was read.") }
-            .show()
+            .showWithVisibleActions()
+    }
+
+    private fun AlertDialog.Builder.showWithVisibleActions(): AlertDialog = show().also { dialog ->
+        val colors = obtainStyledAttributes(intArrayOf(android.R.attr.textColorPrimary))
+        val actionColor = colors.getColor(0, Color.WHITE)
+        colors.recycle()
+        dialog.getButton(AlertDialog.BUTTON_POSITIVE)?.setTextColor(actionColor)
+        dialog.getButton(AlertDialog.BUTTON_NEGATIVE)?.setTextColor(actionColor)
     }
 
     private fun confirmCaptureOrder() {
-        if (!AutoScrollPreferences(this).enabled) {
-            askForNotificationPermission()
-            return
-        }
+        val addingPage = (ReplyCaptureSession.state.value?.frames ?: 0) > 0
         AlertDialog.Builder(this)
-            .setTitle("Is this the oldest page you want?")
+            .setTitle(if (addingPage) "Capture a newer page?" else "Is this the oldest page you want?")
             .setMessage(
-                "Repli captures the currently visible page first. For more context, move only toward newer messages and tap Capture view for each next page. Pages stay in exactly the order you capture them.\n\nIf this is not the oldest page you want to include, cancel, move there, and start again.",
+                if (addingPage) "Move to a newer part of the same chat, keeping a little overlap with the last view. Repli will add it after the pages you already reviewed."
+                else "Repli captures the currently visible page first. For more context, move only toward newer messages and tap Capture view for each next page. Pages stay in exactly the order you capture them.\n\nIf this is not the oldest page you want to include, cancel, move there, and start again.",
             )
-            .setPositiveButton("Yes, start capture") { _, _ -> askForNotificationPermission() }
+            .setPositiveButton(if (addingPage) "Capture newer page" else "Yes, start capture") { _, _ -> askForNotificationPermission() }
             .setNegativeButton("Cancel") { _, _ ->
                 cancelCapture("Capture cancelled. Start again from the oldest page you want to include.")
             }
             .setOnCancelListener {
                 cancelCapture("Capture cancelled. Start again from the oldest page you want to include.")
             }
-            .show()
+            .showWithVisibleActions()
     }
 
     private fun askForNotificationPermission() {
@@ -111,7 +117,7 @@ class ReplyCaptureConsentActivity : ComponentActivity() {
                     launchCapturePrompt()
                 }
                 .setOnCancelListener { cancelCapture("Capture cancelled. Nothing was read.") }
-                .show()
+                .showWithVisibleActions()
         } else launchCapturePrompt()
     }
 

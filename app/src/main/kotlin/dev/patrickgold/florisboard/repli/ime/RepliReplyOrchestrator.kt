@@ -22,6 +22,7 @@ import dev.patrickgold.florisboard.repli.capture.ReplyCaptureSession
 import dev.patrickgold.florisboard.repli.capture.ReplyCaptureState
 import dev.patrickgold.florisboard.repli.capture.ReplyConversation
 import dev.patrickgold.florisboard.repli.capture.ReplyEditor
+import dev.patrickgold.florisboard.repli.capture.ReplyManualCapturePolicy
 import dev.patrickgold.florisboard.repli.capture.ReplyPhase
 import dev.patrickgold.florisboard.repli.capture.ReplyCaptureConsentActivity
 import dev.patrickgold.florisboard.repli.capture.ReviewEvidenceStore
@@ -46,6 +47,7 @@ import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedContextEngine
 import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedReplyEngine
 import dev.patrickgold.florisboard.repli.review.FullScreenContextReviewActivity
 import dev.patrickgold.florisboard.repli.review.FullScreenContextReviewSession
+import dev.patrickgold.florisboard.repli.review.ReplyGuidanceActivity
 import dev.patrickgold.florisboard.repli.voice.MicrophonePermissionActivity
 import dev.patrickgold.florisboard.repli.voice.VoiceDeadline
 import dev.patrickgold.florisboard.repli.voice.VoiceFailure
@@ -88,8 +90,11 @@ data class RepliReplyUiState(
     val explanation: String? = null,
     val canGenerateMore: Boolean = false,
     val reviewing: Boolean = false,
+    val awaitingReview: Boolean = false,
     val reviewTurns: List<ConversationTurn> = emptyList(),
     val reviewFrames: Int = 0,
+    val contextTurns: List<ConversationTurn> = emptyList(),
+    val instructions: String? = null,
     val approval: RepliApprovalCard? = null,
     val guidanceOpen: Boolean = false,
     val guidanceText: String = "",
@@ -145,6 +150,7 @@ class RepliReplyOrchestrator(
     private var pendingRemoteRequest: PreparedRemoteReplyRequest? = null
     private var reviewingTurns: MutableList<ConversationTurn>? = null
     private var guidanceDraftId: String? = null
+    private var guidanceReviewId: String? = null
     private var guidanceOverride: String? = null
     private var fsOriginal: ReplyEditor? = null
     private var voiceRecorder: VoiceGuidanceRecorder? = null
@@ -173,6 +179,14 @@ class RepliReplyOrchestrator(
         val nowSensitive = !TypingPredictionPolicy.allows(info)
         val current = ReplyCaptureSession.state.value
         flogDebug { "RepliReply: onStartInput pkg=${incoming.packageName} field=${incoming.fieldId} sensitive=$nowSensitive session=${current?.id} phase=${current?.phase}" }
+        if (current != null && fsOriginal != null &&
+            FullScreenContextReviewSession.isActive(current.id) &&
+            !FullScreenContextReviewSession.isReturning(current.id) &&
+            incoming.packageName == appContext.packageName
+        ) {
+            // Editing inside our full-screen review must not replace the host chat editor.
+            return false
+        }
         if (current != null && fsOriginal != null && FullScreenContextReviewSession.isReturning(current.id)) {
             val original = fsOriginal
             if (original != null && FullScreenContextReviewSession.acceptsEditor(current.id, original, incoming, appContext.packageName)) {
@@ -186,11 +200,22 @@ class RepliReplyOrchestrator(
             FullScreenContextReviewSession.end(current.id)
             fsOriginal = null
         }
-        if (current != null && current.busy && incoming == current.editor) {
+        if (current != null && incoming == current.editor && !nowSensitive &&
+            current.viewport != null && current.phase in setOf(ReplyPhase.RETURNING, ReplyPhase.READING)
+        ) {
+            editor = incoming
+            sensitive = false
+            scope.launch { delay(50); hideKeyboard() }
+            return false
+        }
+        if (current != null && incoming == current.editor && !nowSensitive &&
+            (current.awaitingKeyboardReturn || current.phase == ReplyPhase.MICROPHONE_PERMISSION ||
+                current.phase == ReplyPhase.MICROPHONE_RETURNING)
+        ) {
             val consumed = ReplyCaptureSession.consumeKeyboardReturn(incoming)
             flogDebug { "RepliReply: round-trip restore consumed=$consumed id=${current.id}" }
             editor = incoming
-            sensitive = nowSensitive
+            sensitive = false
             return true
         }
         if (current != null) {
@@ -290,6 +315,9 @@ class RepliReplyOrchestrator(
     fun insertSuggestion(text: String) {
         flogDebug { "RepliReply: insertSuggestion len=${text.length}" }
         insertText(text)
+        // The reply is only a draft. Return to normal typing so it can be edited
+        // in the host chat composer before the user decides to send it.
+        clear()
     }
 
     fun requestMoreSuggestions() {
@@ -301,6 +329,17 @@ class RepliReplyOrchestrator(
     fun beginCapture(append: Boolean) {
         val target = editor ?: return
         if (sensitive) return
+        if (append && (ReplyCaptureSession.state.value?.frames ?: 0) >= ReplyManualCapturePolicy.MAX_FRAMES) {
+            update { it.copy(status = "All four views are captured. Review this context before generating.") }
+            return
+        }
+        if (append) {
+            val current = ReplyCaptureSession.state.value
+            val edited = reviewingTurns
+            if (current?.phase == ReplyPhase.REVIEW && edited != null) {
+                ReplyCaptureSession.update(current.id) { it.copy(turns = edited.toList()) }
+            }
+        }
         generation?.cancel()
         captureLaunch?.cancel()
         closeVoiceRecorder()
@@ -357,6 +396,7 @@ class RepliReplyOrchestrator(
         pendingRemoteRequest = null
         reviewingTurns = null
         guidanceDraftId = null
+        guidanceReviewId = null
         guidanceOverride = null
         fsOriginal = null
         ReplyCaptureSession.state.value?.id?.let { FullScreenContextReviewSession.end(it) }
@@ -367,13 +407,7 @@ class RepliReplyOrchestrator(
     // Manual chat picker
 
     fun openChatPicker() {
-        if (profiles.isEmpty()) {
-            update { it.copy(active = true, status = "No saved chats yet — add one in Repli chats") }
-            publish()
-            return
-        }
         update { it.copy(active = true, showChatPicker = true) }
-        publish()
     }
 
     fun closeChatPicker() {
@@ -381,22 +415,17 @@ class RepliReplyOrchestrator(
         publish()
     }
 
-    fun selectChat(id: String) {
-        val profile = profiles.firstOrNull { it.id == id } ?: return
+    fun selectChat(id: String?) {
+        if (id != null && profiles.none { it.id == id }) return
         update { it.copy(showChatPicker = false) }
         if (id == selectedProfileId) {
             publish()
             return
         }
-        val state = ReplyCaptureSession.state.value
-        if (state != null && state.phase == ReplyPhase.DRAFT) {
-            // Switching chats while directing discards the draft scope.
-            clear()
-        }
         selectedProfileId = id
         confirmedIdentity = null
         val current = ReplyCaptureSession.state.value
-        if (current != null && current.turns.isNotEmpty() && !current.busy) {
+        if (current != null && current.turns.isNotEmpty() && !current.busy && current.phase !in setOf(ReplyPhase.REVIEW, ReplyPhase.DRAFT)) {
             generate(current)
         }
         publish()
@@ -407,12 +436,13 @@ class RepliReplyOrchestrator(
     fun openReview() {
         val state = ReplyCaptureSession.state.value ?: return
         if (state.turns.isEmpty() || state.busy) return
-        if (state.phase == ReplyPhase.CAPTURE_REVIEW || state.phase == ReplyPhase.APPROVAL) return
+        if (state.phase == ReplyPhase.CAPTURE_REVIEW) return
         reviewingTurns = state.turns.toMutableList()
         publish()
     }
 
     fun closeReview() {
+        if (ReplyCaptureSession.state.value?.phase == ReplyPhase.REVIEW) return
         reviewingTurns = null
         publish()
     }
@@ -434,7 +464,9 @@ class RepliReplyOrchestrator(
     fun useReviewedContext() {
         val state = ReplyCaptureSession.state.value ?: return
         val edited = reviewingTurns ?: return
+        if (edited.isEmpty()) return
         reviewingTurns = null
+        pendingRemoteRequest = null
         ReplyCaptureSession.update(state.id) {
             it.copy(turns = edited.toList(), phase = ReplyPhase.CONTEXT, replies = emptyList())
         }
@@ -445,26 +477,44 @@ class RepliReplyOrchestrator(
     fun openGuidance() {
         val target = editor ?: return
         if (sensitive) return
-        if (ReplyCaptureSession.state.value?.busy == true) return
+        val current = ReplyCaptureSession.state.value
+        if (current?.busy == true) return
+        val fromReview = current?.phase == ReplyPhase.REVIEW
+        val editedReview = reviewingTurns?.toList()
+        if (fromReview && editedReview?.isNotEmpty() == true) {
+            ReplyCaptureSession.update(current.id) { it.copy(turns = editedReview) }
+        }
         generation?.cancel()
         pendingRemoteRequest = null
         closeVoiceRecorder()
         val draft = ReplyCaptureSession.editGuidance(target)
         guidanceDraftId = draft.id
+        guidanceReviewId = draft.id.takeIf { fromReview }
         guidanceOverride = null
+        reviewingTurns = null
         update { it.copy(active = true) }
-        publish()
+        fsOriginal = target
+        FullScreenContextReviewSession.begin(draft.id)
+        try {
+            startActivity(ReplyGuidanceActivity.intent(appContext, draft.id, fromReview))
+        } catch (_: Exception) {
+            FullScreenContextReviewSession.end(draft.id)
+            fsOriginal = null
+            cancelGuidance()
+            update { it.copy(status = "Couldn't open reply direction editor") }
+        }
     }
 
     fun applyGuidance(text: String) {
         val id = guidanceDraftId ?: return
         try {
-            ReplyCaptureSession.finishGuidance(id, text)
+            ReplyCaptureSession.finishGuidance(id, text, reviewBeforeGenerate = guidanceReviewId == id)
         } catch (_: IllegalArgumentException) {
             update { it.copy(status = "Response guidance is too long (500 characters max)") }
             return
         }
         guidanceDraftId = null
+        guidanceReviewId = null
         guidanceOverride = null
         closeVoiceRecorder()
         publish()
@@ -475,9 +525,10 @@ class RepliReplyOrchestrator(
         val state = ReplyCaptureSession.state.value
         if (id != null && state != null && state.id == id) {
             // Closing keeps the previously applied direction; typed text is discarded.
-            ReplyCaptureSession.finishGuidance(id, state.instructions)
+            ReplyCaptureSession.finishGuidance(id, state.instructions, reviewBeforeGenerate = guidanceReviewId == id)
         }
         guidanceDraftId = null
+        guidanceReviewId = null
         guidanceOverride = null
         closeVoiceRecorder()
         publish()
@@ -638,12 +689,23 @@ class RepliReplyOrchestrator(
     fun openFullScreenReview() {
         val target = editor ?: return
         val state = ReplyCaptureSession.state.value ?: return
-        val request = pendingRemoteRequest ?: return
-        if (state.phase != ReplyPhase.APPROVAL || state.editor != target) return
+        if (state.editor != target || state.phase !in setOf(ReplyPhase.REVIEW, ReplyPhase.APPROVAL)) return
+        val reviewIntent = if (state.phase == ReplyPhase.REVIEW) {
+            val turns = reviewingTurns?.toList() ?: state.turns
+            if (turns.isEmpty()) return
+            ReplyCaptureSession.update(state.id) { it.copy(turns = turns) }
+            FullScreenContextReviewActivity.intent(
+                appContext, state.id, turns, state.instructions,
+                selectedProfile()?.style?.displayName ?: "Default",
+            )
+        } else {
+            val request = pendingRemoteRequest ?: return
+            FullScreenContextReviewActivity.intent(appContext, state.id, request)
+        }
         fsOriginal = state.editor
         FullScreenContextReviewSession.begin(state.id)
         try {
-            startActivity(FullScreenContextReviewActivity.intent(appContext, state.id, request))
+            startActivity(reviewIntent)
         } catch (_: Exception) {
             FullScreenContextReviewSession.end(state.id)
             fsOriginal = null
@@ -663,6 +725,7 @@ class RepliReplyOrchestrator(
             pendingRemoteRequest = null
             reviewingTurns = null
             guidanceDraftId = null
+            guidanceReviewId = null
             guidanceOverride = null
             mutable.value = RepliReplyUiState()
             return
@@ -680,9 +743,13 @@ class RepliReplyOrchestrator(
             }
         }
         when (state.phase) {
-            ReplyPhase.RETURNING -> Unit
+            ReplyPhase.RETURNING, ReplyPhase.READING -> if (state.viewport != null) hideKeyboard()
             ReplyPhase.MICROPHONE_RETURNING -> resumeAfterMicrophonePermission(state)
             ReplyPhase.CAPTURE_REVIEW -> handleCaptureReview(state)
+            ReplyPhase.REVIEW -> {
+                reviewingTurns = state.turns.toMutableList()
+                if (state.awaitingKeyboardReturn) showKeyboard()
+            }
             ReplyPhase.CONTEXT -> {
                 reviewingTurns = null
                 if (state.awaitingKeyboardReturn) showKeyboard()
@@ -736,7 +803,7 @@ class RepliReplyOrchestrator(
                 ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
             } else {
                 ReplyCaptureSession.update(state.id) {
-                    it.copy(phase = ReplyPhase.CONTEXT, viewport = null, turns = turns, message = "Finding replies on your phone…")
+                    it.copy(phase = ReplyPhase.REVIEW, viewport = null, turns = turns, message = "Review the captured messages, then generate replies")
                 }
             }
             return
@@ -764,7 +831,7 @@ class RepliReplyOrchestrator(
                         ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
                     } else {
                         ReplyCaptureSession.update(state.id) {
-                            it.copy(phase = ReplyPhase.CONTEXT, turns = merged, message = "Finding replies from AI-read context…")
+                            it.copy(phase = ReplyPhase.REVIEW, turns = merged, message = "Review the captured messages, then generate replies")
                         }
                     }
                 }
@@ -779,7 +846,7 @@ class RepliReplyOrchestrator(
                         ReplyCaptureSession.fail(state.id, "AI reading was unavailable and on-device reading found no messages. Try a clearer capture.")
                     } else {
                         ReplyCaptureSession.update(state.id) {
-                            it.copy(phase = ReplyPhase.CONTEXT, turns = fallback, message = "AI reading unavailable · using on-device text")
+                            it.copy(phase = ReplyPhase.REVIEW, turns = fallback, message = "AI reading unavailable · review the on-device text")
                         }
                     }
                 }
@@ -981,12 +1048,15 @@ class RepliReplyOrchestrator(
             explanation = null,
             canGenerateMore = session?.phase == ReplyPhase.READY && session.replies.isNotEmpty(),
             reviewing = review != null,
+            awaitingReview = session?.phase == ReplyPhase.REVIEW,
             reviewTurns = review.orEmpty(),
             reviewFrames = session?.frames ?: 0,
+            contextTurns = session?.turns.orEmpty(),
+            instructions = session?.instructions,
             approval = approval,
             guidanceOpen = guidanceOpen,
             guidanceText = if (guidanceOpen) guidanceOverride ?: session?.instructions.orEmpty() else "",
-            showChatPicker = current.showChatPicker && profiles.isNotEmpty(),
+            showChatPicker = current.showChatPicker,
             chatOptions = profiles.map { ChatOption(it.id, it.name, it.style.displayName) },
             selectedProfileName = selectedProfile()?.name,
             voice = voiceState,

@@ -43,6 +43,7 @@
     <string name="repli_replies__off">Disabled</string>
     <string name="repli_replies__how_it_works">Suggest replies from the keyboard in any chat composer. With one identifiable WhatsApp or Telegram conversation it uses the confirmed notification; otherwise it captures the visible view with on-device OCR. Cloud generation only runs after you approve the exact payload, and falls back to on-device replies on any failure. Nothing is ever sent automatically.</string>
     <string name="repli_replies__suggest_from_keyboard">Suggest replies (from the keyboard)</string>
+    <string name="repli_replies__try_practice_flow">Try the reply flow in a practice chat</string>
     <string name="repli_replies__mic_title">Voice guidance</string>
     <string name="repli_replies__mic_note">The microphone inside Reply direction transcribes on-device only. Audio is never saved or uploaded.</string>
     <string name="repli_panel__title">Repli replies</string>

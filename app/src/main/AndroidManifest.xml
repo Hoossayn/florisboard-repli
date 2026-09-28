@@ -151,6 +151,18 @@
             android:excludeFromRecents="true"
             android:taskAffinity=""
             android:theme="@style/FlorisAppTheme.Transparent" />
+        <activity
+            android:name="dev.patrickgold.florisboard.repli.capture.ReplyCaptureNextPageActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/FlorisAppTheme.Transparent" />
+        <activity
+            android:name="dev.patrickgold.florisboard.repli.review.ReplyGuidanceActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:windowSoftInputMode="adjustResize" />
         <!-- Repli practice chat (sample conversation, nothing sends) -->
         <activity
             android:name="dev.patrickgold.florisboard.repli.practice.PracticeChatActivity"
@@ -162,7 +174,8 @@
             android:exported="false"
             android:excludeFromRecents="true"
             android:taskAffinity=""
-            android:windowSoftInputMode="adjustResize" />        <activity
+            android:windowSoftInputMode="adjustResize" />
+        <activity
             android:name="dev.patrickgold.florisboard.repli.voice.MicrophonePermissionActivity"
             android:exported="false"
             android:excludeFromRecents="true"

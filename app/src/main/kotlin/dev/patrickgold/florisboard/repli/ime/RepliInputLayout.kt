@@ -1,21 +1,35 @@
 package dev.patrickgold.florisboard.repli.ime
 
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.OutlinedTextFieldDefaults
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -24,27 +38,29 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.isUnspecified
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.ime.ImeUiMode
+import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
 import dev.patrickgold.florisboard.ime.keyboard3.LocalImeController
-import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.florisboard.repli.capture.ConversationTurn
 import dev.patrickgold.florisboard.repli.voice.VoicePhase
 import dev.patrickgold.florisboard.repli.voice.VoiceRecordingState
 import org.florisboard.lib.compose.stringRes
-import org.florisboard.lib.snygg.ui.SnyggBox
-import org.florisboard.lib.snygg.ui.SnyggButton
-import org.florisboard.lib.snygg.ui.SnyggColumn
-import org.florisboard.lib.snygg.ui.SnyggIcon
-import org.florisboard.lib.snygg.ui.SnyggIconButton
-import org.florisboard.lib.snygg.ui.SnyggText
-import org.florisboard.lib.snygg.ui.rememberSnyggThemeQuery
 
-private val FallbackAccent = Color(0xFF6654D1)
+private val Paper = Color(0xFFF3F0FA)
+private val Ink = Color(0xFF27243A)
+private val Muted = Color(0xFF6E6A80)
+private val Accent = Color(0xFF6654D1)
+private val AccentSoft = Color(0xFFEEEAFE)
+private val Line = Color(0xFFE4DEEE)
+private val CardShape = RoundedCornerShape(16.dp)
 
 @Composable
 fun RepliInputLayout(modifier: Modifier = Modifier) {
@@ -66,278 +82,245 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             }
         }
     }
-    val buttonStyle = rememberSnyggThemeQuery(FlorisImeUi.RepliPanelButton.elementName)
-    val buttonColor = buttonStyle.background().takeUnless { it.isUnspecified } ?: FallbackAccent
-
-    SnyggBox(
-        elementName = FlorisImeUi.RepliPanel.elementName,
-        modifier = modifier.fillMaxSize(),
+    val keyboardHeight = FlorisImeSizing.imeUiHeight()
+    val expandedHeight = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.58f, 520.dp)
+    val panelHeight = if (ui.reviewing || ui.approval != null || ui.suggestions.isNotEmpty() || ui.guidanceOpen) {
+        maxOf(keyboardHeight, expandedHeight)
+    } else keyboardHeight
+    Column(
+        modifier = modifier.fillMaxWidth().height(panelHeight).background(Paper),
     ) {
-        SnyggColumn(
-            elementName = FlorisImeUi.RepliPanel.elementName,
-            modifier = Modifier
-                .fillMaxSize()
-                .verticalScroll(rememberScrollState())
-                .padding(12.dp),
+        Row(
+            modifier = Modifier.fillMaxWidth().height(42.dp).padding(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(
+                onClick = { orchestrator.clear() },
+                modifier = Modifier.size(36.dp),
+            ) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringRes(R.string.repli_panel__back), tint = Ink)
+            }
+            Text("Repli replies", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Spacer(Modifier.weight(1f))
+            if (ui.reviewing || ui.suggestions.isNotEmpty()) {
+                TextButton(onClick = { orchestrator.clear() }) { Text("Clear", color = Muted, fontSize = 12.sp) }
+            }
+        }
+        Surface(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(42.dp)
+                .clickable {
+                    if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
+                },
+            shape = RoundedCornerShape(15.dp),
+            color = Color.White,
+            border = BorderStroke(1.dp, Line),
+        ) {
+            Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text("Chat tone", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Spacer(Modifier.weight(1f))
+                Text(ui.selectedProfileName ?: "Default", color = Ink, fontSize = 12.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(Icons.Default.ExpandMore, contentDescription = "Choose chat tone", tint = Accent,
+                    modifier = Modifier.size(19.dp))
+            }
+        }
+        Spacer(Modifier.height(7.dp))
+        if (ui.busy) LinearProgressIndicator(
+            modifier = Modifier.fillMaxWidth().height(2.dp),
+            color = Accent, trackColor = AccentSoft,
+        )
+        if (ui.guidanceOpen) {
+            GuidanceSection(
+                modifier = Modifier.weight(1f),
+                initial = ui.guidanceText,
+                voice = ui.voice,
+                voicePreview = ui.voicePreview,
+                voiceBase = ui.voiceBase,
+                voiceAccepted = ui.voiceAccepted,
+                voiceAcceptedRev = ui.voiceAcceptedRev,
+                voiceStatus = ui.voiceStatus,
+                voiceShowSettings = ui.voiceShowSettings,
+                onApply = orchestrator::applyGuidance,
+                onCancel = orchestrator::cancelGuidance,
+                onMic = orchestrator::startVoice,
+                onPause = orchestrator::pauseVoice,
+                onResume = orchestrator::resumeVoice,
+                onStop = orchestrator::stopVoice,
+                onDiscard = orchestrator::discardVoiceSegment,
+                onConsumeAccepted = orchestrator::consumeVoiceAccepted,
+                onVoiceSettings = orchestrator::openVoiceSettings,
+            )
+            return@Column
+        }
+        Column(
+            modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
+                .padding(horizontal = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SnyggIconButton(
-                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                    onClick = {
-                        orchestrator.clear()
-                        imeController.updateStateBlocking {
-                            state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.TEXT))
-                        }
-                    },
-                ) {
-                    SnyggIcon(imageVector = Icons.AutoMirrored.Default.ArrowBack)
-                }
-                SnyggText(
-                    elementName = FlorisImeUi.RepliPanel.elementName,
-                    text = stringRes(R.string.repli_panel__title),
-                )
-            }
-            if (ui.status.isNotBlank()) {
-                SnyggText(
-                    elementName = FlorisImeUi.RepliPanel.elementName,
-                    text = ui.status,
-                )
-            }
-            if (ui.busy) {
-                LinearProgressIndicator(modifier = Modifier.fillMaxWidth(), color = buttonColor)
-            }
-            ui.confirm?.let { confirm ->
-                SnyggBox(elementName = FlorisImeUi.RepliPanelCard.elementName) {
-                    Column(Modifier.padding(12.dp)) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = confirm.description,
-                        )
-                        Spacer(Modifier.height(8.dp))
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelButton.elementName,
-                            onClick = { orchestrator.confirmSuggestedSender() },
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelButton.elementName,
-                                text = confirm.label,
-                            )
-                        }
-                    }
-                }
-            }
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-            ) {
-                SnyggText(
-                    elementName = FlorisImeUi.RepliPanel.elementName,
-                    modifier = Modifier.weight(1f),
-                    text = ui.selectedProfileName?.let {
-                        stringRes(R.string.repli_panel__for_chat, "name" to it)
-                    } ?: stringRes(R.string.repli_panel__choose_chat),
-                )
-                if (ui.chatOptions.isNotEmpty()) {
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = {
-                            if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
-                        },
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_panel__choose),
-                        )
-                    }
-                }
-            }
             if (ui.showChatPicker) {
-                SnyggBox(elementName = FlorisImeUi.RepliPanelCard.elementName) {
-                    Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                        ui.chatOptions.forEach { option ->
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                SnyggButton(
-                                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                    onClick = { orchestrator.selectChat(option.id) },
-                                ) {
-                                    SnyggText(
-                                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                        text = option.name,
-                                    )
-                                }
-                                SnyggText(
-                                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                    text = option.styleName,
-                                )
-                            }
-                        }
-                    }
-                }
-            }
-            if (ui.suggestions.isNotEmpty()) {
-                ui.suggestions.forEach { suggestion ->
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = { orchestrator.insertSuggestion(suggestion) },
-                        modifier = Modifier.fillMaxWidth(),
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = suggestion,
-                        )
-                    }
-                }
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    if (ui.canGenerateMore) {
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = { orchestrator.requestMoreSuggestions() },
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_panel__more),
-                            )
-                        }
-                    }
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = { orchestrator.openReview() },
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_panel__review_context),
-                        )
-                    }
-                }
-            }
-            if (!ui.busy && ui.suggestions.isEmpty() && ui.approval == null && !ui.reviewing && !ui.guidanceOpen) {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelButton.elementName,
-                        onClick = { orchestrator.beginSuggestion() },
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelButton.elementName,
-                            text = stringRes(R.string.repli_panel__suggest),
-                        )
-                    }
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = { orchestrator.openGuidance() },
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_panel__direction),
-                        )
-                    }
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = { orchestrator.clear() },
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_panel__clear),
-                        )
-                    }
-                }
-            }
-            if (ui.reviewing) {
-                ReviewSection(
-                    turns = ui.reviewTurns,
-                    frames = ui.reviewFrames,
-                    onFlip = { orchestrator.flipReviewSpeaker(it) },
-                    onRemove = { orchestrator.removeReviewTurn(it) },
-                    onUse = { orchestrator.useReviewedContext() },
-                    onAddView = { orchestrator.beginCapture(append = true) },
-                    onClose = { orchestrator.closeReview() },
+                TonePicker(
+                    options = ui.chatOptions,
+                    selectedName = ui.selectedProfileName,
+                    onSelect = orchestrator::selectChat,
                 )
-            }
-            if (ui.guidanceOpen) {
-                GuidanceSection(
-                    initial = ui.guidanceText,
-                    voice = ui.voice,
-                    voicePreview = ui.voicePreview,
-                    voiceBase = ui.voiceBase,
-                    voiceAccepted = ui.voiceAccepted,
-                    voiceAcceptedRev = ui.voiceAcceptedRev,
-                    voiceStatus = ui.voiceStatus,
-                    voiceShowSettings = ui.voiceShowSettings,
-                    onApply = { orchestrator.applyGuidance(it) },
-                    onCancel = { orchestrator.cancelGuidance() },
-                    onMic = { orchestrator.startVoice(it) },
-                    onPause = { orchestrator.pauseVoice() },
-                    onResume = { orchestrator.resumeVoice(it) },
-                    onStop = { orchestrator.stopVoice() },
-                    onDiscard = { orchestrator.discardVoiceSegment() },
-                    onConsumeAccepted = { orchestrator.consumeVoiceAccepted() },
-                    onVoiceSettings = { orchestrator.openVoiceSettings() },
-                )
-            }
-            ui.approval?.let { approval ->
-                SnyggBox(elementName = FlorisImeUi.RepliPanelCard.elementName) {
-                    Column(
-                        Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp),
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_panel__approval_title),
-                        )
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(
-                                R.string.repli_panel__approval_summary,
-                                "count" to approval.turnCount.toString(),
-                                "style" to approval.stylePreset,
-                                "examples" to approval.exampleCount.toString(),
-                            ),
-                        )
-                        approval.instructions?.let {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = it,
-                            )
-                        }
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelButton.elementName,
-                            onClick = { orchestrator.approveGenerate() },
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelButton.elementName,
-                                text = stringRes(R.string.repli_panel__generate),
-                            )
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                            SnyggButton(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                onClick = { orchestrator.dismissApproval() },
-                            ) {
-                                SnyggText(
-                                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                    text = stringRes(R.string.repli_panel__use_on_device),
-                                )
+            } else {
+                ui.confirm?.let { confirm ->
+                    Surface(shape = CardShape, color = AccentSoft) {
+                        Row(Modifier.fillMaxWidth().padding(10.dp), verticalAlignment = Alignment.CenterVertically) {
+                            Text(confirm.description, color = Ink, fontSize = 12.sp,
+                                modifier = Modifier.weight(1f))
+                            TextButton(onClick = orchestrator::confirmSuggestedSender) {
+                                Text(confirm.label, color = Accent, fontSize = 12.sp)
                             }
-                            SnyggButton(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                onClick = { orchestrator.openReview() },
-                            ) {
-                                SnyggText(
-                                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                    text = stringRes(R.string.repli_panel__review_context),
-                                )
-                            }
-                        }
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = { orchestrator.openFullScreenReview() },
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_panel__full_screen),
-                            )
                         }
                     }
+                }
+                when {
+                    ui.reviewing -> ReviewBody(
+                        turns = ui.reviewTurns,
+                        frames = ui.reviewFrames,
+                        canAddPage = ui.reviewFrames < 4,
+                        instructions = ui.instructions,
+                        onFlip = orchestrator::flipReviewSpeaker,
+                        onRemove = orchestrator::removeReviewTurn,
+                        onFullScreen = orchestrator::openFullScreenReview,
+                        onDirection = orchestrator::openGuidance,
+                        onAddPage = { orchestrator.beginCapture(append = true) },
+                    )
+                    ui.approval != null -> ApprovalBody(
+                        approval = ui.approval!!,
+                        turns = ui.contextTurns,
+                        onReview = orchestrator::openReview,
+                        onFullScreen = orchestrator::openFullScreenReview,
+                        onDevice = orchestrator::dismissApproval,
+                    )
+                    ui.suggestions.isNotEmpty() -> {
+                        Text("Reply ideas", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+                        if (ui.status.isNotBlank()) {
+                            Text(ui.status, color = Muted, fontSize = 11.sp)
+                        }
+                        ui.suggestions.forEach { suggestion ->
+                            Surface(
+                                modifier = Modifier.fillMaxWidth().clickable { orchestrator.insertSuggestion(suggestion) },
+                                shape = CardShape,
+                                color = Color.White,
+                                border = BorderStroke(1.dp, Line),
+                            ) {
+                                Text(suggestion, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                    color = Ink, fontSize = 14.sp)
+                            }
+                        }
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            if (ui.canGenerateMore) SmallAction("More replies", orchestrator::requestMoreSuggestions)
+                            SmallAction("Review", orchestrator::openReview)
+                            SmallAction("Direction", orchestrator::openGuidance)
+                        }
+                    }
+                    else -> {
+                        Text(ui.status.ifBlank { "Capture a chat to find your next reply." },
+                            color = Muted, fontSize = 13.sp)
+                        if (!ui.busy) {
+                            SmallAction("Add reply direction", orchestrator::openGuidance)
+                            Text("For longer chats, start on the oldest page and capture each newer view.",
+                                color = Muted, fontSize = 11.sp)
+                        }
+                    }
+                }
+            }
+        }
+        when {
+            ui.showChatPicker -> PanelFooter("Done", onClick = orchestrator::closeChatPicker)
+            ui.reviewing -> PanelFooter(
+                if (ui.awaitingReview) "Generate replies" else "Use this context",
+                enabled = ui.reviewTurns.isNotEmpty(),
+                onClick = orchestrator::useReviewedContext,
+            )
+            ui.approval != null -> PanelFooter("Generate cloud replies", onClick = orchestrator::approveGenerate)
+            !ui.busy && ui.suggestions.isEmpty() -> PanelFooter("Capture chat", onClick = orchestrator::beginSuggestion)
+        }
+    }
+}
+
+@Composable
+private fun TonePicker(options: List<ChatOption>, selectedName: String?, onSelect: (String?) -> Unit) {
+    Text("Choose a chat tone", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    ToneOption("Default tone", "No saved writing style", selectedName == null) { onSelect(null) }
+    options.forEach { option ->
+        ToneOption(option.name, option.styleName, option.name == selectedName) { onSelect(option.id) }
+    }
+    if (options.isEmpty()) {
+        Text("Save a chat in Repli Chats to use its writing style here.", color = Muted, fontSize = 12.sp)
+    }
+}
+
+@Composable
+private fun ToneOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+    Surface(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = CardShape,
+        color = if (selected) AccentSoft else Color.White,
+        border = BorderStroke(1.dp, if (selected) Accent else Line),
+    ) {
+        Column(Modifier.padding(horizontal = 13.dp, vertical = 8.dp)) {
+            Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+            Text(subtitle, color = Muted, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+private fun ReviewBody(
+    turns: List<ConversationTurn>,
+    frames: Int,
+    canAddPage: Boolean,
+    instructions: String?,
+    onFlip: (Int) -> Unit,
+    onRemove: (Int) -> Unit,
+    onFullScreen: () -> Unit,
+    onDirection: () -> Unit,
+    onAddPage: () -> Unit,
+) {
+    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+        Text("Review context", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold,
+            modifier = Modifier.weight(1f))
+        SmallAction("Full screen", onFullScreen)
+        Text("${turns.size} messages", color = Accent, fontSize = 11.sp,
+            modifier = Modifier.padding(start = 4.dp))
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        SmallAction("Add direction", onDirection)
+        if (canAddPage) SmallAction("Add page", onAddPage)
+    }
+    if (instructions != null) {
+        Surface(shape = CardShape, color = AccentSoft) {
+            Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                Text("Reply direction", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                Text(instructions, color = Ink, fontSize = 12.sp)
+            }
+        }
+    }
+    Text(if (frames > 0) "Recent chat · $frames captured view${if (frames == 1) "" else "s"}"
+        else "Recent chat", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+    turns.forEachIndexed { index, turn ->
+        Surface(
+            modifier = Modifier.fillMaxWidth(),
+            shape = CardShape,
+            color = if (turn.fromMe) AccentSoft else Color.White,
+            border = BorderStroke(1.dp, Line),
+        ) {
+            Row(Modifier.padding(start = 11.dp, end = 3.dp, top = 6.dp, bottom = 6.dp),
+                verticalAlignment = Alignment.Top) {
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        if (turn.fromMe) "You · change" else "Them · change",
+                        color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.clickable { onFlip(index) }.padding(bottom = 3.dp),
+                    )
+                    Text(turn.text, color = Ink, fontSize = 13.sp, lineHeight = 17.sp)
+                }
+                IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(34.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Remove message ${index + 1}",
+                        tint = Muted, modifier = Modifier.size(18.dp))
                 }
             }
         }
@@ -345,80 +328,62 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun ReviewSection(
+private fun ApprovalBody(
+    approval: RepliApprovalCard,
     turns: List<ConversationTurn>,
-    frames: Int,
-    onFlip: (Int) -> Unit,
-    onRemove: (Int) -> Unit,
-    onUse: () -> Unit,
-    onAddView: () -> Unit,
-    onClose: () -> Unit,
+    onReview: () -> Unit,
+    onFullScreen: () -> Unit,
+    onDevice: () -> Unit,
 ) {
-    SnyggBox(elementName = FlorisImeUi.RepliPanelCard.elementName) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            SnyggText(
-                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                text = stringRes(R.string.repli_panel__review_title, "frames" to frames.toString()),
-            )
-            turns.forEachIndexed { index, turn ->
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = { onFlip(index) },
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = if (turn.fromMe) stringRes(R.string.repli_panel__me) else stringRes(R.string.repli_panel__them),
-                        )
-                    }
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = turn.text,
-                        modifier = Modifier.weight(1f),
-                    )
-                    SnyggIconButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = { onRemove(index) },
-                    ) {
-                        SnyggIcon(imageVector = Icons.Default.Close)
-                    }
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SnyggButton(
-                    elementName = FlorisImeUi.RepliPanelButton.elementName,
-                    onClick = onUse,
-                ) {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelButton.elementName,
-                        text = stringRes(R.string.repli_panel__use_context),
-                    )
-                }
-                SnyggButton(
-                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                    onClick = onAddView,
-                ) {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = stringRes(R.string.repli_panel__add_view),
-                    )
-                }
-                SnyggButton(
-                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                    onClick = onClose,
-                ) {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = stringRes(R.string.repli_panel__close),
-                    )
-                }
+    Text("Review before cloud generation", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+    Text("${approval.turnCount} messages · ${approval.stylePreset} tone · ${approval.exampleCount} examples",
+        color = Muted, fontSize = 12.sp)
+    approval.instructions?.let {
+        Text("Direction: $it", color = Ink, fontSize = 12.sp)
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        SmallAction("Review context", onReview)
+        SmallAction("Full screen", onFullScreen)
+        SmallAction("On-device", onDevice)
+    }
+    turns.takeLast(3).forEach { turn ->
+        Surface(shape = CardShape, color = if (turn.fromMe) AccentSoft else Color.White,
+            border = BorderStroke(1.dp, Line)) {
+            Column(Modifier.fillMaxWidth().padding(10.dp)) {
+                Text(if (turn.fromMe) "You" else "Them", color = Muted, fontSize = 11.sp)
+                Text(turn.text, color = Ink, fontSize = 12.sp, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
             }
         }
+    }
+}
+
+@Composable
+private fun PanelFooter(label: String, enabled: Boolean = true, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(45.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
+    ) {
+        Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    }
+}
+
+@Composable
+private fun SmallAction(label: String, onClick: () -> Unit) {
+    Box(
+        modifier = Modifier.height(32.dp).clickable(onClick = onClick).padding(horizontal = 7.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(label, color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
     }
 }
 
 @Composable
 private fun GuidanceSection(
+    modifier: Modifier = Modifier,
     initial: String,
     voice: VoiceRecordingState?,
     voicePreview: String,
@@ -439,10 +404,7 @@ private fun GuidanceSection(
 ) {
     var field by remember { mutableStateOf(initial) }
     var appliedRev by remember { mutableStateOf(0) }
-    LaunchedEffect(initial) {
-        field = initial
-        appliedRev = 0
-    }
+    LaunchedEffect(initial) { field = initial; appliedRev = 0 }
     LaunchedEffect(voiceAcceptedRev) {
         if (voiceAcceptedRev > appliedRev && voiceAccepted != null) {
             appliedRev = voiceAcceptedRev
@@ -450,191 +412,64 @@ private fun GuidanceSection(
             onConsumeAccepted()
         }
     }
-    val voiceBusy = voice?.phase == VoicePhase.PREPARING ||
-        voice?.phase == VoicePhase.LISTENING ||
-        voice?.phase == VoicePhase.PAUSING ||
-        voice?.phase == VoicePhase.PROCESSING
+    val voiceBusy = voice?.phase in setOf(VoicePhase.PREPARING, VoicePhase.LISTENING,
+        VoicePhase.PAUSING, VoicePhase.PROCESSING)
     LaunchedEffect(voicePreview, voiceBusy) {
         if (voiceBusy && voicePreview.isNotBlank()) field = voicePreview
     }
     LaunchedEffect(voiceBusy) {
-        if (!voiceBusy && appliedRev == voiceAcceptedRev) {
-            // Provisional preview expired with nothing accepted: restore the draft.
-            if (voice != null && voice.phase != VoicePhase.REVIEW && voice.phase != VoicePhase.PAUSED) {
-                field = voiceBase
-            }
-        }
+        if (!voiceBusy && appliedRev == voiceAcceptedRev && voice != null &&
+            voice.phase !in setOf(VoicePhase.REVIEW, VoicePhase.PAUSED)) field = voiceBase
     }
-    val cardStyle = rememberSnyggThemeQuery(FlorisImeUi.RepliPanelCard.elementName)
-    val buttonStyle = rememberSnyggThemeQuery(FlorisImeUi.RepliPanelButton.elementName)
-    val fieldTextColor = cardStyle.foreground().takeUnless { it.isUnspecified } ?: Color.Unspecified
-    val accentColor = buttonStyle.background().takeUnless { it.isUnspecified } ?: FallbackAccent
-    SnyggBox(elementName = FlorisImeUi.RepliPanelCard.elementName) {
-        Column(Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            SnyggText(
-                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                text = stringRes(R.string.repli_panel__direction_title),
-            )
+    Column(modifier.fillMaxWidth()) {
+        Column(Modifier.weight(1f).verticalScroll(rememberScrollState()).padding(horizontal = 12.dp)) {
+            Text("Guide this reply", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
+            Text("Add a little context or say how you want to respond before generating.",
+                color = Muted, fontSize = 12.sp)
+            Spacer(Modifier.height(8.dp))
             OutlinedTextField(
                 value = field,
                 onValueChange = { if (!voiceBusy && it.length <= 500) field = it },
-                label = {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = stringRes(R.string.repli_panel__direction_hint),
-                    )
-                },
-                supportingText = {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = "${field.length} / 500",
-                    )
-                },
-                maxLines = 2,
+                placeholder = { Text("For example: decline politely", color = Muted) },
+                supportingText = { Text("${field.length} / 500", color = Muted, fontSize = 10.sp) },
+                minLines = 2,
+                maxLines = 3,
                 enabled = !voiceBusy,
                 modifier = Modifier.fillMaxWidth(),
+                shape = CardShape,
                 colors = OutlinedTextFieldDefaults.colors(
-                    focusedTextColor = fieldTextColor,
-                    unfocusedTextColor = fieldTextColor,
-                    disabledTextColor = fieldTextColor,
-                    cursorColor = accentColor,
-                    focusedBorderColor = accentColor,
+                    focusedTextColor = Ink, unfocusedTextColor = Ink,
+                    focusedBorderColor = Accent, unfocusedBorderColor = Line,
+                    focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
                 ),
             )
-            if (voiceStatus != null) {
-                SnyggText(
-                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                    text = voiceStatus,
-                )
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                SnyggButton(
-                    elementName = FlorisImeUi.RepliPanelButton.elementName,
-                    onClick = { onApply(field) },
-                    enabled = !voiceBusy,
-                ) {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelButton.elementName,
-                        text = stringRes(R.string.repli_panel__apply),
-                    )
-                }
-                SnyggButton(
-                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                    onClick = { field = "" },
-                    enabled = !voiceBusy,
-                ) {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = stringRes(R.string.repli_panel__clear_field),
-                    )
-                }
-                SnyggButton(
-                    elementName = FlorisImeUi.RepliPanelCard.elementName,
-                    onClick = onCancel,
-                    enabled = !voiceBusy,
-                ) {
-                    SnyggText(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        text = stringRes(R.string.repli_panel__close),
-                    )
-                }
-            }
-            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            if (voiceStatus != null) Text(voiceStatus, color = Muted, fontSize = 11.sp)
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 when (voice?.phase) {
                     VoicePhase.LISTENING, VoicePhase.PAUSING -> {
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = onPause,
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__pause),
-                            )
-                        }
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = onStop,
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__stop),
-                            )
-                        }
+                        SmallAction("Pause", onPause)
+                        SmallAction("Stop", onStop)
                     }
                     VoicePhase.PAUSED -> {
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = { onResume(field) },
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__resume),
-                            )
-                        }
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = onStop,
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__stop),
-                            )
-                        }
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = onDiscard,
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__discard),
-                            )
-                        }
+                        SmallAction("Resume") { onResume(field) }
+                        SmallAction("Stop", onStop)
+                        SmallAction("Discard", onDiscard)
                     }
-                    VoicePhase.PROCESSING, VoicePhase.PREPARING -> {
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = onStop,
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__stop),
-                            )
-                        }
-                    }
-                    else -> {
-                        SnyggButton(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            onClick = { onMic(field) },
-                        ) {
-                            SnyggText(
-                                elementName = FlorisImeUi.RepliPanelCard.elementName,
-                                text = stringRes(R.string.repli_voice__mic),
-                            )
-                        }
-                    }
+                    VoicePhase.PROCESSING, VoicePhase.PREPARING -> SmallAction("Stop", onStop)
+                    else -> SmallAction("Speak direction") { onMic(field) }
                 }
-                if (voiceShowSettings) {
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = onVoiceSettings,
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_voice__settings),
-                        )
-                    }
-                }
-                if (voice != null && !voiceBusy) {
-                    SnyggButton(
-                        elementName = FlorisImeUi.RepliPanelCard.elementName,
-                        onClick = onDiscard,
-                    ) {
-                        SnyggText(
-                            elementName = FlorisImeUi.RepliPanelCard.elementName,
-                            text = stringRes(R.string.repli_voice__discard),
-                        )
-                    }
-                }
+                if (voiceShowSettings) SmallAction("Voice settings", onVoiceSettings)
+            }
+        }
+        Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 5.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            OutlinedButton(onClick = onCancel, enabled = !voiceBusy,
+                modifier = Modifier.weight(1f).height(44.dp), shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, Line)) { Text("Cancel", color = Accent) }
+            Button(onClick = { onApply(field) }, enabled = !voiceBusy,
+                modifier = Modifier.weight(2f).height(44.dp), shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                Text("Use direction", color = Color.White)
             }
         }
     }

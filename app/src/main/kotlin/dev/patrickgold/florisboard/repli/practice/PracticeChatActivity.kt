@@ -9,6 +9,7 @@ import android.view.Gravity
 import android.view.View
 import android.view.WindowInsets
 import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
@@ -29,7 +30,6 @@ class PracticeChatActivity : Activity() {
             orientation = LinearLayout.VERTICAL
             setPadding(dp(20), dp(12), dp(20), dp(10))
             addView(title("Alex · practice chat"))
-            addView(subtitle("Sample messages · nothing is sent"))
         })
         val messages = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
@@ -49,11 +49,31 @@ class PracticeChatActivity : Activity() {
                 topMargin = dp(10)
             })
         }
+        bubble("Hey, how did your presentation go yesterday?", false)
+        bubble("Better than I expected. Thanks for checking in!", true)
+        bubble("Of course. You put a lot of work into it.", false)
+        bubble("The questions were tough, but the team seemed interested.", true)
+        bubble("That's great news. Did they say what happens next?", false)
+        bubble("They'll send feedback by Friday, so I'm trying not to overthink it.", true)
+        bubble("Fair enough. We should celebrate either way.", false)
+        bubble("A quiet weekend sounds perfect after all that.", true)
+        bubble("Maybe a walk and something good to eat?", false)
+        bubble("I'd be up for that. Let's pick a place later.", true)
+        bubble("I saw a café near the park that might work.", false)
+        bubble("Send me the name when you get a chance.", true)
+        bubble("Morning! Did you get a chance to look at the new café?", false)
+        bubble("I did. The little place by the park looks great.", true)
+        bubble("I heard their pastries are worth trying.", false)
+        bubble("That's a strong reason to go.", true)
+        bubble("Would Saturday work for you?", false)
+        bubble("Saturday might be busy, but I'm free later in the week.", true)
+        bubble("No rush. We can find a day that works for both of us.", false)
+        bubble("Sounds good! Let me check my schedule tonight.", true)
         bubble("Hey! How is your day going?", true)
         bubble("Pretty good, thanks! Want to grab coffee tomorrow?", false)
         val scroll = ScrollView(this).apply { isFillViewport = true; addView(messages) }
         root.addView(scroll, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f))
-        root.addView(EditText(this).apply {
+        val composer = EditText(this).apply {
             id = android.R.id.edit
             hint = "Type here, or try the reply icon"
             textSize = 16f
@@ -65,7 +85,8 @@ class PracticeChatActivity : Activity() {
             setPadding(dp(16), dp(12), dp(16), dp(12))
             background = rounded(Color.WHITE)
             setOnFocusChangeListener { _, focused -> if (focused) scroll.postDelayed({ scroll.fullScroll(View.FOCUS_DOWN) }, 450) }
-        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
+        }
+        root.addView(composer, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
             setMargins(dp(12), dp(6), dp(12), dp(6))
         })
         root.setOnApplyWindowInsetsListener { view, insets ->
@@ -80,6 +101,10 @@ class PracticeChatActivity : Activity() {
         }
         setContentView(root)
         root.requestApplyInsets()
+        composer.requestFocus()
+        composer.postDelayed({
+            getSystemService(InputMethodManager::class.java).showSoftInput(composer, InputMethodManager.SHOW_IMPLICIT)
+        }, 250)
     }
 
     private fun title(text: String) = TextView(this).apply {

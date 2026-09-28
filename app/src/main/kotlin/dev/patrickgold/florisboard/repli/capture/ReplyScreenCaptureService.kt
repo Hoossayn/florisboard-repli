@@ -26,7 +26,6 @@ import android.view.WindowManager
 import android.widget.Toast
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
 import dev.patrickgold.florisboard.lib.devtools.flogError
-import dev.patrickgold.florisboard.repli.data.AutoScrollPreferences
 import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedContextEngine
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -232,7 +231,7 @@ class ReplyScreenCaptureService : Service() {
         lastCapturedSignature = signature
         val now = SystemClock.elapsedRealtime()
         val decision = ReplyManualCapturePolicy.afterFrame(
-            framesCaptured = framesCaptured,
+            framesCaptured = (ReplyCaptureSession.state.value?.frames ?: 0) + framesCaptured,
             totalTurns = capturedTurns.size,
             elapsedMs = if (manualCaptureStartedAt == 0L) 0L else now - manualCaptureStartedAt,
         )
@@ -246,10 +245,14 @@ class ReplyScreenCaptureService : Service() {
         state.viewport ?: return completeCapture(ManualCaptureDecision.USER_DONE)
         val now = SystemClock.elapsedRealtime()
         if (!manualCaptureActive) {
-            if (!showManualCaptureGuide(state.editor.packageName)) {
+            val overlayAvailable = showManualCaptureGuide(state.editor.packageName)
+            val notificationAvailable = Build.VERSION.SDK_INT < 33 ||
+                checkSelfPermission(android.Manifest.permission.POST_NOTIFICATIONS) ==
+                android.content.pm.PackageManager.PERMISSION_GRANTED
+            if (!overlayAvailable && !notificationAvailable) {
                 Toast.makeText(
                     this,
-                    "Using the first view only. Turn on Guided manual capture to add pages without opening notifications.",
+                    "For more pages, enable Repli guided capture or capture notifications in Settings.",
                     Toast.LENGTH_LONG,
                 ).show()
                 completeCapture(ManualCaptureDecision.USER_DONE)
@@ -258,6 +261,9 @@ class ReplyScreenCaptureService : Service() {
             manualCaptureActive = true
             manualCaptureStartedAt = now
             handler.postDelayed(manualTimeout, ReplyManualCapturePolicy.MAX_DURATION_MS)
+            if (!overlayAvailable) {
+                Toast.makeText(this, "Scroll to a newer page, then use Capture view in the Repli notification.", Toast.LENGTH_LONG).show()
+            }
         }
         ReplyCaptureSession.update(requestId) {
             it.copy(
@@ -266,9 +272,9 @@ class ReplyScreenCaptureService : Service() {
             )
         }
         updateCaptureNotification(
-            "${framesCaptured}/${ReplyManualCapturePolicy.MAX_FRAMES} views · continue oldest → newest",
+            "${state.frames + framesCaptured}/${ReplyManualCapturePolicy.MAX_FRAMES} views · continue oldest → newest",
         )
-        ReplyAutoScrollBridge.updateGuide(framesCaptured, ReplyManualCapturePolicy.MAX_FRAMES)
+        ReplyAutoScrollBridge.updateGuide(state.frames + framesCaptured, ReplyManualCapturePolicy.MAX_FRAMES)
     }
 
     private fun requestAdditionalView() {
@@ -283,7 +289,8 @@ class ReplyScreenCaptureService : Service() {
         ReplyCaptureSession.update(requestId) {
             it.copy(phase = ReplyPhase.RETURNING, message = "Capturing this view…")
         }
-        updateCaptureNotification("Capturing view ${framesCaptured + 1}/${ReplyManualCapturePolicy.MAX_FRAMES}…")
+        val previousViews = ReplyCaptureSession.state.value?.frames ?: 0
+        updateCaptureNotification("Capturing view ${previousViews + framesCaptured + 1}/${ReplyManualCapturePolicy.MAX_FRAMES}…")
         handler.removeCallbacks(captureAttempt)
         handler.postDelayed(captureAttempt, PAGE_CAPTURE_SETTLE_MS)
     }
@@ -314,11 +321,11 @@ class ReplyScreenCaptureService : Service() {
         } else if (capturedTurns.isNotEmpty()) {
             ReplyCaptureSession.update(requestId) {
                 it.copy(
-                    phase = ReplyPhase.CONTEXT,
+                    phase = ReplyPhase.REVIEW,
                     turns = ReplyConversation.mergeCapture(baseTurns, capturedTurns),
                     frames = it.frames + framesCaptured,
                     viewport = null,
-                    message = "Finding replies on your phone…",
+                    message = "Review the captured messages, then generate replies",
                 )
             }
         } else {
@@ -329,11 +336,10 @@ class ReplyScreenCaptureService : Service() {
     }
 
     private fun showManualCaptureGuide(targetPackage: String): Boolean {
-        val guideShown = AutoScrollPreferences(this).enabled &&
-            ReplyAutoScrollBridge.showGuide(
+        val guideShown = ReplyAutoScrollBridge.showGuide(
                 expectedPackage = targetPackage,
                 requestId = requestId,
-                captured = framesCaptured,
+                captured = (ReplyCaptureSession.state.value?.frames ?: 0) + framesCaptured,
                 maximum = ReplyManualCapturePolicy.MAX_FRAMES,
             )
         if (guideShown) {
@@ -466,19 +472,28 @@ class ReplyScreenCaptureService : Service() {
     }
 
     private fun updateCaptureNotification(message: String) {
-        getSystemService(NotificationManager::class.java).notify(
-            9821,
-            Notification.Builder(this, CHANNEL_ID)
-                .setSmallIcon(android.R.drawable.ic_menu_view)
-                .setContentTitle("Repli is capturing chat context")
-                .setContentText(message)
-                .setOngoing(true)
-                .setOnlyAlertOnce(true)
-                .setVisibility(Notification.VISIBILITY_PRIVATE)
-                .addAction(Notification.Action.Builder(null, "Done", doneAction()).build())
-                .build(),
-        )
+        val builder = Notification.Builder(this, CHANNEL_ID)
+            .setSmallIcon(android.R.drawable.ic_menu_view)
+            .setContentTitle("Repli is capturing chat context")
+            .setContentText(message)
+            .setOngoing(true)
+            .setOnlyAlertOnce(true)
+            .setVisibility(Notification.VISIBILITY_PRIVATE)
+        if (manualCaptureActive && (ReplyCaptureSession.state.value?.frames ?: 0) + framesCaptured < ReplyManualCapturePolicy.MAX_FRAMES) {
+            builder.addAction(Notification.Action.Builder(null, "Capture view", captureViewAction()).build())
+        }
+        builder.addAction(Notification.Action.Builder(null, "Done", doneAction()).build())
+        getSystemService(NotificationManager::class.java).notify(9821, builder.build())
     }
+
+    private fun captureViewAction(): PendingIntent = PendingIntent.getActivity(
+        this,
+        9822,
+        Intent(this, ReplyCaptureNextPageActivity::class.java)
+            .putExtra(EXTRA_REQUEST_ID, requestId)
+            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY),
+        PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,
+    )
 
     private fun doneAction(): PendingIntent = PendingIntent.getService(
         this,
@@ -493,9 +508,14 @@ class ReplyScreenCaptureService : Service() {
         const val EXTRA_REQUEST_ID = "request_id"
         const val EXTRA_CONSENT = "consent"
         private const val ACTION_CAPTURE_VIEW = "dev.patrickgold.florisboard.repli.reply.CAPTURE_VIEW"
+
+        fun nextViewIntent(context: Context, requestId: String): Intent =
+            Intent(context, ReplyScreenCaptureService::class.java)
+                .setAction(ACTION_CAPTURE_VIEW)
+                .putExtra(EXTRA_REQUEST_ID, requestId)
         private const val ACTION_STOP = "dev.patrickgold.florisboard.repli.reply.STOP"
         private const val CHANNEL_ID = "reply_capture"
-        private const val PAGE_CAPTURE_SETTLE_MS = 700L
+        private const val PAGE_CAPTURE_SETTLE_MS = 1_200L
         private const val VISION_MAX_DIMENSION = 3_072
         private const val VISION_FRAME_BYTE_BUDGET =
             ServerMediatedContextEngine.MAX_TOTAL_IMAGE_BYTES /

@@ -57,9 +57,13 @@ import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
+import dev.patrickgold.florisboard.ime.ImeUiMode
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
 import dev.patrickgold.florisboard.ime.keyboard3.LocalImeController
+import dev.patrickgold.florisboard.ime.keyboard3.ImeActions
+import dev.patrickgold.florisboard.ime.nlp.latin.TypingPredictionPolicy
 import dev.patrickgold.florisboard.ime.nlp.NlpInlineAutofill
+import dev.patrickgold.florisboard.ime.smartbar.quickaction.QuickAction
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.QuickActionButton
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.QuickActionsRow
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.ToggleOverflowPanelAction
@@ -290,6 +294,22 @@ private fun SmartbarMainRow(modifier: Modifier = Modifier) {
     }
 
     @Composable
+    fun RepliReplyAction() {
+        val arrangement by prefs.smartbar.actionArrangement.collectAsState()
+        val replyAction = QuickAction.InsertK3Descriptor(ImeActions.SuggestReplies)
+        if (imeState.flags.imeUiMode == ImeUiMode.TEXT &&
+            !imeState.flags.isIncognitoMode &&
+            TypingPredictionPolicy.allows(imeState.editor.info) &&
+            arrangement.stickyAction != replyAction
+        ) {
+            QuickActionButton(
+                action = replyAction,
+                modifier = Modifier.padding(horizontal = 4.dp),
+            )
+        }
+    }
+
+    @Composable
     fun StickyAction() {
         val actionArrangement by prefs.smartbar.actionArrangement.collectAsState()
 
@@ -353,9 +373,11 @@ private fun SmartbarMainRow(modifier: Modifier = Modifier) {
                 if (!flipToggles) {
                     SharedActionsToggle()
                     CenterContent()
+                    if (!sharedActionsExpanded) RepliReplyAction()
                     StickyAction()
                 } else {
                     StickyAction()
+                    if (!sharedActionsExpanded) RepliReplyAction()
                     CenterContent()
                     SharedActionsToggle()
                 }
@@ -365,9 +387,11 @@ private fun SmartbarMainRow(modifier: Modifier = Modifier) {
                 if (!flipToggles) {
                     ExtendedActionsToggle()
                     CenterContent()
+                    if (!extendedActionsExpanded) RepliReplyAction()
                     StickyAction()
                 } else {
                     StickyAction()
+                    if (!extendedActionsExpanded) RepliReplyAction()
                     CenterContent()
                     ExtendedActionsToggle()
                 }

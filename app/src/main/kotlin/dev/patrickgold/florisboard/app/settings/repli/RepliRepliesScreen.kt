@@ -19,6 +19,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -28,13 +29,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.core.app.NotificationManagerCompat
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.lib.compose.FlorisScreen
+import dev.patrickgold.florisboard.lib.util.InputMethodUtils
 import dev.patrickgold.florisboard.repli.account.RepliFirebaseAccountManager
 import dev.patrickgold.florisboard.repli.capture.ReplyAutoScrollAccessibilityService
 import dev.patrickgold.florisboard.repli.data.RemoteGenerationPreferences
+import dev.patrickgold.florisboard.repli.practice.PracticeChatActivity
 import dev.patrickgold.jetpref.datastore.ui.Preference
 import dev.patrickgold.jetpref.datastore.ui.PreferenceGroup
 import org.florisboard.lib.compose.stringRes
@@ -48,9 +54,22 @@ fun RepliRepliesScreen() = FlorisScreen {
         val context = LocalContext.current
         val navController = LocalNavController.current
         val accountState by RepliFirebaseAccountManager.state.collectAsState()
+        val keyboardEnabled by InputMethodUtils.observeIsFlorisboardEnabled(foregroundOnly = true)
+        val keyboardSelected by InputMethodUtils.observeIsFlorisboardSelected(foregroundOnly = true)
         var cloudEnabled by remember { mutableStateOf(RemoteGenerationPreferences(context).enabled) }
         var notificationOn by remember { mutableStateOf(isNotificationListenerOn(context)) }
         var guidedOn by remember { mutableStateOf(isGuidedCaptureOn(context)) }
+        val lifecycleOwner = LocalLifecycleOwner.current
+        DisposableEffect(lifecycleOwner, context) {
+            val observer = LifecycleEventObserver { _, event ->
+                if (event == Lifecycle.Event.ON_RESUME) {
+                    notificationOn = isNotificationListenerOn(context)
+                    guidedOn = isGuidedCaptureOn(context)
+                }
+            }
+            lifecycleOwner.lifecycle.addObserver(observer)
+            onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+        }
 
         PreferenceGroup(title = stringRes(R.string.repli_replies__cloud_title)) {
             Preference(
@@ -119,11 +138,20 @@ fun RepliRepliesScreen() = FlorisScreen {
             }
             Spacer(Modifier.height(8.dp))
             Button(
-                onClick = { /* IME keyboard UI hosts Suggest replies; opens from any chat composer. */ },
-                enabled = false,
+                onClick = {
+                    when {
+                        !keyboardEnabled -> InputMethodUtils.showImeEnablerActivity(context)
+                        !keyboardSelected -> InputMethodUtils.showImePicker(context)
+                        else -> context.startActivity(Intent(context, PracticeChatActivity::class.java))
+                    }
+                },
                 modifier = Modifier.fillMaxWidth(),
             ) {
-                Text(stringRes(R.string.repli_replies__suggest_from_keyboard))
+                Text(stringRes(when {
+                    !keyboardEnabled -> R.string.repli_home__enable_keyboard
+                    !keyboardSelected -> R.string.repli_home__choose_keyboard
+                    else -> R.string.repli_replies__try_practice_flow
+                }))
             }
             Spacer(Modifier.height(8.dp))
             Text(stringRes(R.string.repli_replies__mic_note))

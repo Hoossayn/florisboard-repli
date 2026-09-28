@@ -16,25 +16,24 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.Routes
 import org.florisboard.lib.compose.stringRes
-import kotlin.reflect.KClass
 
 private val RepliAccent = Color(0xFF6654D1)
 private val RepliAccentSoft = Color(0xFFEEEAFE)
 private val RepliMuted = Color(0xFF6E6A80)
 
-private data class RepliTab(val route: KClass<*>, val label: Int, val icon: Int)
+private data class RepliTab(val route: Any, val label: Int, val icon: Int)
 
 private val RepliTabs = listOf(
-    RepliTab(Routes.Settings.RepliHome::class, R.string.repli_nav__home, R.drawable.ic_nav_home),
-    RepliTab(Routes.Settings.RepliChats::class, R.string.repli_nav__chats, R.drawable.ic_nav_chats),
-    RepliTab(Routes.Settings.Home::class, R.string.repli_nav__settings, R.drawable.ic_nav_settings),
+    RepliTab(Routes.Settings.RepliHome, R.string.repli_nav__home, R.drawable.ic_nav_home),
+    RepliTab(Routes.Settings.RepliChats, R.string.repli_nav__chats, R.drawable.ic_nav_chats),
+    RepliTab(Routes.Settings.Home, R.string.repli_nav__settings, R.drawable.ic_nav_settings),
 )
 
 @Composable
 fun RepliBottomNav(navController: NavController) {
     val backStackEntry by navController.currentBackStackEntryAsState()
     val destination = backStackEntry?.destination
-    val selectedIndex = RepliTabs.indexOfFirst { destination?.hasRoute(it.route) == true }
+    val selectedIndex = RepliTabs.indexOfFirst { destination?.hasRoute(it.route::class) == true }
     if (selectedIndex < 0) return
     NavigationBar(containerColor = Color.White) {
         RepliTabs.forEachIndexed { index, tab ->

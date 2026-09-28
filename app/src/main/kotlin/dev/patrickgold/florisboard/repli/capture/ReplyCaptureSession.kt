@@ -7,7 +7,7 @@ import kotlinx.coroutines.flow.asStateFlow
 
 data class ReplyEditor(val packageName: String, val fieldId: Int, val fieldName: String?)
 
-enum class ReplyPhase { DRAFT, MICROPHONE_PERMISSION, MICROPHONE_RETURNING, CONSENT, RETURNING, READING, CAPTURE_REVIEW, CONTEXT, APPROVAL, GENERATING, READY, ERROR }
+enum class ReplyPhase { DRAFT, MICROPHONE_PERMISSION, MICROPHONE_RETURNING, CONSENT, RETURNING, READING, CAPTURE_REVIEW, REVIEW, CONTEXT, APPROVAL, GENERATING, READY, ERROR }
 
 /** Full-screen dimensions plus the last chat pixel that may be read.
  * `contentBottom` excludes the host app's composer and system navigation while
@@ -28,7 +28,7 @@ data class ReplyCaptureState(
     val microphoneDraft: String? = null,
     val recordAfterPermission: Boolean = false,
 ) {
-    val busy: Boolean get() = phase !in setOf(ReplyPhase.DRAFT, ReplyPhase.APPROVAL, ReplyPhase.READY, ReplyPhase.ERROR)
+    val busy: Boolean get() = phase !in setOf(ReplyPhase.DRAFT, ReplyPhase.REVIEW, ReplyPhase.APPROVAL, ReplyPhase.READY, ReplyPhase.ERROR)
 }
 
 /** In-memory, same-process handoff. No screenshot or OCR history goes to disk.
@@ -76,13 +76,21 @@ object ReplyCaptureSession {
         ).also { mutable.value = it }
     }
 
-    fun finishGuidance(id: String, instructions: String?) {
+    fun finishGuidance(id: String, instructions: String?, reviewBeforeGenerate: Boolean = false) {
         val prepared = RemoteReplyPrivacyPolicy.prepareInstructions(instructions)
         update(id) {
             if (it.phase != ReplyPhase.DRAFT) return@update it
             it.copy(instructions = prepared,
-                phase = if (it.turns.isEmpty()) ReplyPhase.DRAFT else ReplyPhase.CONTEXT,
-                message = if (prepared == null) "Tap the reply icon when you're ready" else "Reply direction added · tap the reply icon",
+                phase = when {
+                    it.turns.isEmpty() -> ReplyPhase.READY
+                    reviewBeforeGenerate -> ReplyPhase.REVIEW
+                    else -> ReplyPhase.CONTEXT
+                },
+                message = when {
+                    reviewBeforeGenerate && it.turns.isNotEmpty() -> "Review the chat, then generate with your direction"
+                    prepared == null -> "Tap the reply icon when you're ready"
+                    else -> "Reply direction added · tap the reply icon"
+                },
             )
         }
     }

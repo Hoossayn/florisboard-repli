@@ -1,6 +1,7 @@
 package dev.patrickgold.florisboard.repli.practice
 
 import android.app.Activity
+import android.content.res.Configuration
 import android.graphics.Color
 import android.os.Build
 import android.os.Bundle
@@ -14,6 +15,7 @@ import android.widget.EditText
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
+import androidx.core.view.WindowCompat
 
 /** Real editable chat surface with clearly labelled sample content. Nothing sends. */
 class PracticeChatActivity : Activity() {
@@ -22,6 +24,12 @@ class PracticeChatActivity : Activity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         window.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE)
+        window.statusBarColor = PAPER
+        window.navigationBarColor = PAPER
+        WindowCompat.getInsetsController(window, window.decorView).apply {
+            isAppearanceLightStatusBars = !isDarkMode
+            isAppearanceLightNavigationBars = !isDarkMode
+        }
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.VERTICAL
             setBackgroundColor(PAPER)
@@ -42,7 +50,7 @@ class PracticeChatActivity : Activity() {
                 textSize = 17f
                 setTextColor(INK)
                 setPadding(dp(14), dp(12), dp(14), dp(12))
-                background = rounded(if (fromMe) ACCENT_SOFT else Color.WHITE)
+                background = rounded(if (fromMe) ACCENT_SOFT else CARD)
                 maxWidth = dp(260)
             }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
                 gravity = if (fromMe) Gravity.END else Gravity.START
@@ -77,13 +85,12 @@ class PracticeChatActivity : Activity() {
             id = android.R.id.edit
             hint = "Type here, or try the reply icon"
             textSize = 16f
-            // The app theme is dark; the composer surface is light, so set explicit colors.
             setTextColor(INK)
             setHintTextColor(MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             maxLines = 3
             setPadding(dp(16), dp(12), dp(16), dp(12))
-            background = rounded(Color.WHITE)
+            background = rounded(CARD)
             setOnFocusChangeListener { _, focused -> if (focused) scroll.postDelayed({ scroll.fullScroll(View.FOCUS_DOWN) }, 450) }
         }
         root.addView(composer, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply {
@@ -125,10 +132,11 @@ class PracticeChatActivity : Activity() {
         cornerRadius = dp(16).toFloat()
     }
 
-    private companion object {
-        const val PAPER = 0xFFFAF8F5.toInt()
-        const val INK = 0xFF27243A.toInt()
-        const val MUTED = 0xFF6E6A80.toInt()
-        const val ACCENT_SOFT = 0xFFEEEAFE.toInt()
-    }
+    private val isDarkMode: Boolean get() =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    private val PAPER: Int get() = if (isDarkMode) 0xFF17151E.toInt() else 0xFFFAF8F5.toInt()
+    private val CARD: Int get() = if (isDarkMode) 0xFF25212F.toInt() else Color.WHITE
+    private val INK: Int get() = if (isDarkMode) 0xFFF4F1FA.toInt() else 0xFF27243A.toInt()
+    private val MUTED: Int get() = if (isDarkMode) 0xFFB8B1C6.toInt() else 0xFF6E6A80.toInt()
+    private val ACCENT_SOFT: Int get() = if (isDarkMode) 0xFF383050.toInt() else 0xFFEEEAFE.toInt()
 }

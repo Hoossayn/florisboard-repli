@@ -3,6 +3,7 @@ package dev.patrickgold.florisboard.repli.ime
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.PaddingValues
@@ -57,12 +58,17 @@ import dev.patrickgold.florisboard.repli.voice.VoicePhase
 import dev.patrickgold.florisboard.repli.voice.VoiceRecordingState
 import org.florisboard.lib.compose.stringRes
 
-private val Paper = Color(0xFFF3F0FA)
-private val Ink = Color(0xFF27243A)
-private val Muted = Color(0xFF6E6A80)
-private val Accent = Color(0xFF6654D1)
-private val AccentSoft = Color(0xFFEEEAFE)
-private val Line = Color(0xFFE4DEEE)
+private val Paper: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF17151E) else Color(0xFFF3F0FA)
+private val Card: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF25212F) else Color.White
+private val Ink: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFF4F1FA) else Color(0xFF27243A)
+private val Muted: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFB8B1C6) else Color(0xFF6E6A80)
+private val Accent: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFAB9BFF) else Color(0xFF6654D1)
+private val OnAccent: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF21183E) else Color.White
+private val AccentSoft: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF383050) else Color(0xFFEEEAFE)
+private val Line: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF453E52) else Color(0xFFE4DEEE)
+private val ErrorCard: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF4A292D) else Color(0xFFFFEDEC)
+private val ErrorLine: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF8A5357) else Color(0xFFE8B8B5)
+private val ErrorText: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFFFC9C5) else Color(0xFF8B2925)
 private val CardShape = RoundedCornerShape(16.dp)
 
 @Composable
@@ -122,7 +128,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                     if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
                 },
             shape = RoundedCornerShape(15.dp),
-            color = Color.White,
+            color = Card,
             border = BorderStroke(1.dp, Line),
         ) {
             Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -215,7 +221,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                             Surface(
                                 modifier = Modifier.fillMaxWidth().clickable { orchestrator.insertSuggestion(suggestion) },
                                 shape = CardShape,
-                                color = Color.White,
+                                color = Card,
                                 border = BorderStroke(1.dp, Line),
                             ) {
                                 Text(suggestion, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
@@ -239,13 +245,13 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             Surface(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
                 shape = CardShape,
-                color = Color(0xFFFFEDEC),
-                border = BorderStroke(1.dp, Color(0xFFE8B8B5)),
+                color = ErrorCard,
+                border = BorderStroke(1.dp, ErrorLine),
             ) {
                 Text(
                     ui.generationError.orEmpty(),
                     modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                    color = Color(0xFF8B2925), fontSize = 12.sp,
+                    color = ErrorText, fontSize = 12.sp,
                     maxLines = 3, overflow = TextOverflow.Ellipsis,
                 )
             }
@@ -284,7 +290,7 @@ private fun ToneOption(title: String, subtitle: String, selected: Boolean, onCli
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = CardShape,
-        color = if (selected) AccentSoft else Color.White,
+        color = if (selected) AccentSoft else Card,
         border = BorderStroke(1.dp, if (selected) Accent else Line),
     ) {
         Column(Modifier.padding(horizontal = 13.dp, vertical = 8.dp)) {
@@ -323,7 +329,7 @@ private fun ReviewBody(
         Surface(
             modifier = Modifier.fillMaxWidth(),
             shape = CardShape,
-            color = if (turn.fromMe) AccentSoft else Color.White,
+            color = if (turn.fromMe) AccentSoft else Card,
             border = BorderStroke(1.dp, Line),
         ) {
             Row(Modifier.padding(start = 11.dp, end = 3.dp, top = 6.dp, bottom = 6.dp),
@@ -369,7 +375,7 @@ private fun ApprovalBody(
         SmallAction("Full screen", onFullScreen)
     }
     turns.takeLast(3).forEach { turn ->
-        Surface(shape = CardShape, color = if (turn.fromMe) AccentSoft else Color.White,
+        Surface(shape = CardShape, color = if (turn.fromMe) AccentSoft else Card,
             border = BorderStroke(1.dp, Line)) {
             Column(Modifier.fillMaxWidth().padding(10.dp)) {
                 Text(if (turn.fromMe) "You" else "Them", color = Muted, fontSize = 11.sp)
@@ -385,14 +391,14 @@ private fun MoreRepliesFooter(onDirection: () -> Unit, onMore: () -> Unit) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(modifier = Modifier.weight(1f).height(44.dp).clickable(onClick = onDirection),
-            shape = CardShape, color = Color.White, border = BorderStroke(1.dp, Line)) {
+            shape = CardShape, color = Card, border = BorderStroke(1.dp, Line)) {
             Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
                 Text("Tell Repli what you want…", color = Muted, fontSize = 12.sp)
             }
         }
         Button(onClick = onMore, modifier = Modifier.height(44.dp),
             shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-            Text("More suggestions", color = Color.White, fontSize = 12.sp)
+            Text("More suggestions", color = OnAccent, fontSize = 12.sp)
         }
     }
 }
@@ -404,7 +410,7 @@ private fun PanelFooter(label: String, enabled: Boolean = true, onClick: () -> U
         enabled = enabled,
         modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 12.dp, bottom = 6.dp).height(45.dp),
         shape = RoundedCornerShape(14.dp),
-        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = Color.White),
+        colors = ButtonDefaults.buttonColors(containerColor = Accent, contentColor = OnAccent),
     ) {
         Text(label, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
     }
@@ -479,7 +485,7 @@ private fun GuidanceSection(
                 colors = OutlinedTextFieldDefaults.colors(
                     focusedTextColor = Ink, unfocusedTextColor = Ink,
                     focusedBorderColor = Accent, unfocusedBorderColor = Line,
-                    focusedContainerColor = Color.White, unfocusedContainerColor = Color.White,
+                    focusedContainerColor = Card, unfocusedContainerColor = Card,
                 ),
             )
             if (voiceStatus != null) Text(voiceStatus, color = Muted, fontSize = 11.sp)
@@ -508,7 +514,7 @@ private fun GuidanceSection(
             Button(onClick = { onApply(field) }, enabled = !voiceBusy,
                 modifier = Modifier.weight(2f).height(44.dp), shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-                Text("Use direction", color = Color.White)
+                Text("Use direction", color = OnAccent)
             }
         }
     }
@@ -520,7 +526,7 @@ fun RepliInlineToneBar(modifier: Modifier = Modifier) {
     val ui by controller.uiState.collectAsState()
     Surface(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp)
         .height(42.dp).clickable { controller.openChatPicker() },
-        color = Color.White, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+        color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
         Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
             Text("Chat tone", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
             Spacer(Modifier.weight(1f))
@@ -538,7 +544,7 @@ fun RepliInlineSuggestionRow(modifier: Modifier = Modifier) {
     Row(modifier.fillMaxWidth().height(54.dp).background(Paper).padding(horizontal = 7.dp, vertical = 4.dp),
         horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(modifier = Modifier.weight(1f).height(44.dp).clickable { controller.insertSuggestion(first) },
-            color = Color.White, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+            color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
             Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
                 Text(first, color = Ink, fontSize = 12.sp, maxLines = 2,
                     overflow = TextOverflow.Ellipsis)
@@ -546,7 +552,7 @@ fun RepliInlineSuggestionRow(modifier: Modifier = Modifier) {
         }
         Button(onClick = controller::openMoreReplies, modifier = Modifier.height(44.dp),
             shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-            Text("More suggestions", color = Color.White, fontSize = 11.sp)
+            Text("More suggestions", color = OnAccent, fontSize = 11.sp)
         }
     }
 }
@@ -556,7 +562,7 @@ fun RepliInlineGuidance(modifier: Modifier = Modifier) {
     val controller = LocalImeController.current.repliReply ?: return
     val ui by controller.uiState.collectAsState()
     Surface(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
-        color = Color.White, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+        color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
         Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text("Guide the next replies", color = Ink, fontSize = 15.sp,
@@ -587,7 +593,7 @@ fun RepliInlineGuidance(modifier: Modifier = Modifier) {
                     shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                     Text(if (ui.suggestions.isNotEmpty()) "Generate more" else "Use direction",
-                        color = Color.White, fontSize = 12.sp)
+                        color = OnAccent, fontSize = 12.sp)
                 }
             }
         }

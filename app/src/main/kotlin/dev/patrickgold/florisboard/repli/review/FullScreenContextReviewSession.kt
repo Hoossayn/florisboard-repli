@@ -37,8 +37,9 @@ object FullScreenContextReviewSession {
     ): Boolean {
         val current = session ?: return false
         if (current.requestId != requestId || candidate == null) return false
-        return candidate.packageName == imePackage || candidate == original ||
-            (current.returning && candidate.packageName == original.packageName)
+        return candidate == original ||
+            (current.returning && candidate.packageName == original.packageName &&
+                candidate.packageName != imePackage)
     }
 
     fun end(requestId: String) {

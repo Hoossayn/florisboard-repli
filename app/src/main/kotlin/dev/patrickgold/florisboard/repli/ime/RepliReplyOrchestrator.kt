@@ -187,11 +187,8 @@ class RepliReplyOrchestrator(
         val nowSensitive = !TypingPredictionPolicy.allows(info)
         val current = ReplyCaptureSession.state.value
         flogDebug { "RepliReply: onStartInput pkg=${incoming.packageName} field=${incoming.fieldId} sensitive=$nowSensitive session=${current?.id} phase=${current?.phase}" }
-        if (current != null && fsOriginal != null &&
-            FullScreenContextReviewSession.isActive(current.id) &&
-            !FullScreenContextReviewSession.isReturning(current.id) &&
-            incoming.packageName == appContext.packageName
-        ) {
+        if (current != null && FullScreenContextReviewSession.isActive(current.id) &&
+            incoming.packageName == appContext.packageName && incoming != current.editor) {
             // Editing inside our full-screen review must not replace the host chat editor.
             return false
         }
@@ -483,14 +480,25 @@ class RepliReplyOrchestrator(
     fun flipReviewSpeaker(index: Int) {
         val turns = reviewingTurns ?: return
         if (index !in turns.indices) return
-        turns[index] = turns[index].copy(fromMe = !turns[index].fromMe)
-        publish()
+        val updated = turns.toMutableList()
+        updated[index] = updated[index].copy(fromMe = !updated[index].fromMe)
+        saveReviewTurns(updated)
     }
 
     fun removeReviewTurn(index: Int) {
         val turns = reviewingTurns ?: return
         if (index !in turns.indices) return
-        turns.removeAt(index)
+        val updated = turns.toMutableList()
+        updated.removeAt(index)
+        saveReviewTurns(updated)
+    }
+
+    private fun saveReviewTurns(turns: MutableList<ConversationTurn>) {
+        reviewingTurns = turns
+        val state = ReplyCaptureSession.state.value
+        if (state?.phase == ReplyPhase.REVIEW) {
+            ReplyCaptureSession.update(state.id) { it.copy(turns = turns.toList()) }
+        }
         publish()
     }
 

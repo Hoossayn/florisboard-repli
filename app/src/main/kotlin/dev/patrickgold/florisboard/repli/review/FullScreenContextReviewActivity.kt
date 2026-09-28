@@ -3,6 +3,7 @@ package dev.patrickgold.florisboard.repli.review
 import android.app.AlertDialog
 import android.content.Context
 import android.content.Intent
+import android.content.res.Configuration
 import android.content.res.ColorStateList
 import android.graphics.Color
 import android.graphics.Typeface
@@ -63,8 +64,8 @@ class FullScreenContextReviewActivity : ComponentActivity() {
         window.statusBarColor = PAPER
         window.navigationBarColor = PAPER
         @Suppress("DEPRECATION")
-        window.decorView.systemUiVisibility = View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-            View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
+        window.decorView.systemUiVisibility = if (isDarkMode) 0 else
+            View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR
         val content = reviewView(payload)
         content.setOnApplyWindowInsetsListener { view, insets ->
             val (top, bottom) = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
@@ -153,7 +154,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
     private fun detailCard(title: String, value: String) = LinearLayout(this).apply {
         orientation = LinearLayout.VERTICAL
         setPadding(dp(14), dp(11), dp(14), dp(12))
-        background = roundedBackground(Color.WHITE, 14, LINE_SOFT)
+        background = roundedBackground(CARD, 14, LINE_SOFT)
         addView(label(title, 12f, MUTED, bold = true))
         addView(label(value, 14f, INK), sectionParams(top = 3))
     }
@@ -175,7 +176,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
             minimumWidth = dp(96)
             setPadding(dp(12), dp(8), dp(12), dp(9))
             background = roundedBackground(
-                if (message.fromMe) ACCENT_SOFT else Color.WHITE,
+                if (message.fromMe) ACCENT_SOFT else CARD,
                 14,
                 if (message.fromMe) null else LINE_SOFT,
             )
@@ -290,6 +291,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
             finish()
             return
         }
+        FullScreenContextReviewSession.markReturning(requestId)
         ReplyCaptureSession.update(requestId) {
             it.copy(
                 turns = edits.turns,
@@ -299,7 +301,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
                     else "Preparing corrected context review…",
             )
         }
-        returnToKeyboard()
+        finish()
     }
 
     private fun confirmDiscardOrFinish() {
@@ -438,9 +440,9 @@ class FullScreenContextReviewActivity : ComponentActivity() {
         this.text = text
         isAllCaps = false
         textSize = 14f
-        setTextColor(if (filled) Color.WHITE else ACCENT)
+        setTextColor(if (filled) ON_ACCENT else ACCENT)
         background = pressableRoundedBackground(
-            color = if (filled) ACCENT else Color.WHITE,
+            color = if (filled) ACCENT else CARD,
             pressedColor = if (filled) ACCENT_PRESSED else ACCENT_SOFT,
             radiusDp = 16,
             strokeColor = if (filled) null else LINE_STRONG,
@@ -491,14 +493,18 @@ class FullScreenContextReviewActivity : ComponentActivity() {
                 addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_NO_HISTORY)
             }
 
-        // Source palette values, kept local so no theme reference is needed.
-        private const val PAPER = 0xFFFAF8F5.toInt()
-        private const val INK = 0xFF27243A.toInt()
-        private const val MUTED = 0xFF6E6A80.toInt()
-        private const val ACCENT = 0xFF6654D1.toInt()
-        private const val ACCENT_SOFT = 0xFFEEEAFE.toInt()
-        private const val ACCENT_PRESSED = 0xFF4C3BA8.toInt()
-        private const val LINE_SOFT = 0xFFE7E2EE.toInt()
-        private const val LINE_STRONG = 0xFFD7CEE5.toInt()
     }
+
+    private val isDarkMode: Boolean get() =
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+    private val PAPER: Int get() = if (isDarkMode) 0xFF17151E.toInt() else 0xFFFAF8F5.toInt()
+    private val CARD: Int get() = if (isDarkMode) 0xFF25212F.toInt() else Color.WHITE
+    private val INK: Int get() = if (isDarkMode) 0xFFF4F1FA.toInt() else 0xFF27243A.toInt()
+    private val MUTED: Int get() = if (isDarkMode) 0xFFB8B1C6.toInt() else 0xFF6E6A80.toInt()
+    private val ACCENT: Int get() = if (isDarkMode) 0xFFAB9BFF.toInt() else 0xFF6654D1.toInt()
+    private val ON_ACCENT: Int get() = if (isDarkMode) 0xFF21183E.toInt() else Color.WHITE
+    private val ACCENT_SOFT: Int get() = if (isDarkMode) 0xFF383050.toInt() else 0xFFEEEAFE.toInt()
+    private val ACCENT_PRESSED: Int get() = if (isDarkMode) 0xFF8C79EE.toInt() else 0xFF4C3BA8.toInt()
+    private val LINE_SOFT: Int get() = if (isDarkMode) 0xFF453E52.toInt() else 0xFFE7E2EE.toInt()
+    private val LINE_STRONG: Int get() = if (isDarkMode) 0xFF655A73.toInt() else 0xFFD7CEE5.toInt()
 }

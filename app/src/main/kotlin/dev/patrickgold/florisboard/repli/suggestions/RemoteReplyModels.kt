@@ -24,7 +24,7 @@ data class SharedReplyStyle(
     val examples: List<String>,
 )
 
-/** The complete and only payload shown for approval and eligible for upload. */
+/** The bounded payload prepared after the user confirms the reviewed context. */
 data class PreparedRemoteReplyRequest(
     val context: List<SharedConversationTurn>,
     val style: SharedReplyStyle,

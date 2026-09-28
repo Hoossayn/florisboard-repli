@@ -24,7 +24,7 @@
         <key id="base" layerId="base" width="1.5" />
 
         <key id="bksp" output="@k3:action/backspace" stretch="true" />
-        <key id="extra" gap="true" />
+        <key id="extra" output="@fl:action/show_media_panel" />
         <key id="enter" output="@k3:action/enter" width="1.6" />
         <key id="space-no-stretch" output="\u{0020}" />
         <key id="bksp-no-stretch" output="@k3:action/backspace" />

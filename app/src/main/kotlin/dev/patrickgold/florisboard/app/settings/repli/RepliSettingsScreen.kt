@@ -109,7 +109,7 @@ fun RepliSettingsScreen() {
                     })
                 RepliLabel("Offer cloud replies after review", 14, RepliStyle.ink)
             }
-            RepliLabel("Captured chat images can be read by AI when enabled. You check the extracted messages and approve the exact reply request before generation. Replies require a connection.",
+            RepliLabel("Captured chat images can be read by AI when enabled. Check the extracted messages, then tap Generate replies to send the reviewed context. Replies require a connection.",
                 12, RepliStyle.muted)
         }
 
@@ -199,7 +199,7 @@ fun RepliSettingsScreen() {
         RepliCard {
             RepliLabel("Private by default", 17, RepliStyle.ink, bold = true)
             Spacer(Modifier.height(8.dp))
-            RepliLabel("Keyboard prediction and adaptive learning stay on this device. AI reading uses captured images when cloud capture is enabled; cloud replies use only the reviewed text and examples you approve. Repli never sends a chat message for you.",
+            RepliLabel("Keyboard prediction and adaptive learning stay on this device. AI reading uses captured images when cloud capture is enabled. Tapping Generate replies sends reviewed text, your direction, and selected style examples. Repli never sends a chat message for you.",
                 14, RepliStyle.muted)
             Spacer(Modifier.height(14.dp))
             RepliAction("Privacy & FAQ", { privacyFaq = true }, filled = false)
@@ -207,7 +207,7 @@ fun RepliSettingsScreen() {
     }
 
     if (cloudDisclosure) RepliDisclosure("Enable cloud replies?",
-        "When enabled, captured chat images can be sent for AI reading. You review the extracted messages, optional direction, and style before you approve each reply request. Reply generation requires internet and an account.",
+        "When enabled, captured chat images can be sent for AI reading. Review the extracted messages and optional direction before tapping Generate replies. That tap sends the reviewed context and selected style examples. Reply generation requires internet and an account.",
         "Enable", onConfirm = {
             remote.enabled = true
             cloudEnabled = true
@@ -229,7 +229,7 @@ fun RepliSettingsScreen() {
             clearLearning = false
         }, onDismiss = { clearLearning = false })
     if (privacyFaq) RepliDisclosure("Privacy & FAQ",
-        "Repli never sends a chat message automatically. Keyboard learning stays on-device. AI reading may use captured images when cloud capture is enabled; reply generation sends the reviewed text only after you approve it. Captured images are not saved to app storage.",
+        "Repli never sends a chat message automatically. Keyboard learning stays on-device. AI reading may use captured images when cloud capture is enabled. Tapping Generate replies sends reviewed text, your direction, and selected style examples. Captured images are not saved to app storage.",
         "Done", onConfirm = { privacyFaq = false }, onDismiss = { privacyFaq = false })
 }
 

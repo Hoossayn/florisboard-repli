@@ -84,9 +84,11 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
     }
     val keyboardHeight = FlorisImeSizing.imeUiHeight()
     val moreHeight = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.48f, 440.dp)
-    val panelHeight = if (ui.suggestions.isNotEmpty() && !ui.guidanceOpen) {
-        maxOf(keyboardHeight, moreHeight)
-    } else keyboardHeight
+    val panelHeight = when {
+        ui.reviewing -> keyboardHeight + 20.dp
+        ui.suggestions.isNotEmpty() && !ui.guidanceOpen -> maxOf(keyboardHeight, moreHeight)
+        else -> keyboardHeight
+    }
     Column(
         modifier = modifier.fillMaxWidth().height(panelHeight).background(Paper),
     ) {
@@ -233,7 +235,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
         when {
             ui.showChatPicker -> PanelFooter("Done", onClick = orchestrator::closeChatPicker)
             ui.reviewing -> PanelFooter(
-                if (ui.awaitingReview) "Generate replies" else "Use this context",
+                "Generate replies",
                 enabled = ui.reviewTurns.isNotEmpty(),
                 onClick = orchestrator::useReviewedContext,
             )

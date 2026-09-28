@@ -136,7 +136,7 @@ sealed class ImeWindowConstraints(rootInsets: ImeInsets.Root) {
                 ImeFormFactor.Type.TABLET_LANDSCAPE -> 0.35f
                 ImeFormFactor.Type.TABLET_PORTRAIT -> 0.22f
                 ImeFormFactor.Type.PHONE_LANDSCAPE -> 0.47f
-                ImeFormFactor.Type.PHONE_PORTRAIT -> 0.26f
+                ImeFormFactor.Type.PHONE_PORTRAIT -> 0.28f
             }
             (baselineScreen.height * factor).coerceIn(minKeyboardHeight, maxKeyboardHeight)
         }

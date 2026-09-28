@@ -116,7 +116,7 @@ data class RepliReplyUiState(
 /**
  * FlorisBoard-native reply orchestrator. Owns the ported Repli engines and session,
  * exposes UI-agnostic [StateFlow] state, and never touches Views directly.
- * Cloud generation only runs from an explicitly approved [PreparedRemoteReplyRequest].
+ * Cloud generation starts when the user confirms the edited review context.
  */
 class RepliReplyOrchestrator(
     private val appContext: Context,
@@ -940,15 +940,15 @@ class RepliReplyOrchestrator(
             }
             return
         }
-        if (approved == null) prepareRemoteApproval(state, more) else generateNow(state, approved, more)
+        if (approved == null) prepareAndGenerate(state, more) else generateNow(state, approved, more)
     }
 
-    private fun prepareRemoteApproval(state: ReplyCaptureState, more: Boolean = false) {
+    private fun prepareAndGenerate(state: ReplyCaptureState, more: Boolean = false) {
         generation?.cancel()
         pendingMore = more
         ReplyCaptureSession.update(state.id) {
             it.copy(phase = ReplyPhase.GENERATING, replies = if (more) state.replies else emptyList(),
-                message = "Preparing cloud context review…")
+                message = "Preparing cloud replies…")
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
@@ -959,10 +959,8 @@ class RepliReplyOrchestrator(
                 )
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
-                    pendingRemoteRequest = prepared
-                    ReplyCaptureSession.update(state.id) {
-                        it.copy(phase = ReplyPhase.APPROVAL, message = "Review what Repli will send to the cloud")
-                    }
+                    generation = null
+                    generateNow(state, prepared, more)
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
@@ -983,7 +981,7 @@ class RepliReplyOrchestrator(
         val unavailable = cloudUnavailableReason()
         if (unavailable != null) {
             ReplyCaptureSession.update(state.id) {
-                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.APPROVAL, message = unavailable)
+                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW, message = unavailable)
             }
             return
         }
@@ -1013,7 +1011,7 @@ class RepliReplyOrchestrator(
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id == state.id) {
                         ReplyCaptureSession.update(state.id) {
-                            it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.APPROVAL,
+                            it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
                                 message = "Cloud timed out. Check your connection and retry.")
                         }
                     }
@@ -1031,7 +1029,7 @@ class RepliReplyOrchestrator(
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
                     ReplyCaptureSession.update(state.id) {
-                        it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.APPROVAL, message = status)
+                        it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW, message = status)
                     }
                 }
             }

@@ -50,7 +50,7 @@ import org.florisboard.lib.compose.stringRes
 @Composable
 fun HomeScreen() = FlorisScreen {
     title = stringRes(R.string.settings__home__title)
-    navigationIconVisible = false
+    navigationIconVisible = true
     previewFieldVisible = true
 
     val navController = LocalNavController.current

@@ -54,6 +54,7 @@ import dev.patrickgold.florisboard.app.settings.about.AboutScreen
 import dev.patrickgold.florisboard.app.settings.account.RepliAccountScreen
 import dev.patrickgold.florisboard.app.settings.repli.RepliChatsScreen
 import dev.patrickgold.florisboard.app.settings.repli.RepliHomeScreen
+import dev.patrickgold.florisboard.app.settings.repli.RepliSettingsScreen
 import dev.patrickgold.florisboard.app.settings.repli.LearnByScrollingScreen
 import dev.patrickgold.florisboard.app.settings.repli.RepliRepliesScreen
 import dev.patrickgold.florisboard.app.settings.about.ProjectLicenseScreen
@@ -210,6 +211,10 @@ object Routes {
         object RepliHome
 
         @Serializable
+        @Deeplink("settings/repli-settings")
+        object RepliSettings
+
+        @Serializable
         @Deeplink("settings/learn-by-scrolling")
         object LearnByScrolling
 
@@ -348,6 +353,7 @@ object Routes {
             composableWithDeepLink(Settings.Account::class) { RepliAccountScreen() }
             composableWithDeepLink(Settings.RepliChats::class) { RepliChatsScreen() }
             composableWithDeepLink(Settings.RepliHome::class) { RepliHomeScreen() }
+            composableWithDeepLink(Settings.RepliSettings::class) { RepliSettingsScreen() }
             composableWithDeepLink(Settings.LearnByScrolling::class) { LearnByScrollingScreen() }
             composableWithDeepLink(Settings.RepliReplies::class) { RepliRepliesScreen() }
             composableWithDeepLink(Settings.ProjectLicense::class) { ProjectLicenseScreen() }

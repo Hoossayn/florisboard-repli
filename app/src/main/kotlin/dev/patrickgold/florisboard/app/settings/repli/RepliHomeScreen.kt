@@ -1,207 +1,106 @@
 package dev.patrickgold.florisboard.app.settings.repli
 
 import android.content.Intent
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.size
+import androidx.compose.material3.Surface
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.app.Routes
-import dev.patrickgold.florisboard.lib.compose.FlorisScreen
 import dev.patrickgold.florisboard.lib.util.InputMethodUtils
 import dev.patrickgold.florisboard.repli.practice.PracticeChatActivity
-import org.florisboard.lib.compose.FlorisErrorCard
-import org.florisboard.lib.compose.FlorisWarningCard
-import org.florisboard.lib.compose.stringRes
-
-private val RepliPaper = Color(0xFFFAF8F5)
-private val RepliInk = Color(0xFF27243A)
-private val RepliMuted = Color(0xFF6E6A80)
-private val RepliAccent = Color(0xFF6654D1)
-private val RepliAccentSoft = Color(0xFFEEEAFE)
 
 @Composable
-fun RepliHomeScreen() = FlorisScreen {
-    title = stringRes(R.string.repli_home__brand)
-    navigationIconVisible = false
-    previewFieldVisible = false
-
-    val navController = LocalNavController.current
+fun RepliHomeScreen() {
     val context = LocalContext.current
+    val navController = LocalNavController.current
+    val enabled by InputMethodUtils.observeIsFlorisboardEnabled(foregroundOnly = true)
+    val selected by InputMethodUtils.observeIsFlorisboardSelected(foregroundOnly = true)
 
-    content {
-        val isEnabled by InputMethodUtils.observeIsFlorisboardEnabled(foregroundOnly = true)
-        val isSelected by InputMethodUtils.observeIsFlorisboardSelected(foregroundOnly = true)
-
-        Text(
-            text = stringRes(R.string.repli_home__tagline),
-            color = RepliMuted,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-
-        Card(
-            colors = CardDefaults.cardColors(containerColor = RepliAccentSoft),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-        ) {
-            Column(Modifier.padding(20.dp)) {
-                Text(
-                    text = stringRes(R.string.repli_home__eyebrow),
-                    color = RepliAccent,
-                    fontSize = 11.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringRes(R.string.repli_home__headline),
-                    color = RepliInk,
-                    fontSize = 30.sp,
-                    fontWeight = FontWeight.Bold,
-                    lineHeight = 36.sp,
-                )
-                Spacer(Modifier.height(12.dp))
-                Text(
-                    text = stringRes(R.string.repli_home__sub),
-                    color = RepliMuted,
-                    fontSize = 15.sp,
-                )
-                Spacer(Modifier.height(20.dp))
-                Button(
-                    onClick = { context.startActivity(Intent(context, PracticeChatActivity::class.java)) },
-                    colors = ButtonDefaults.buttonColors(containerColor = RepliAccent),
-                ) {
-                    Text(stringRes(R.string.repli_home__practice))
-                }
-                Spacer(Modifier.height(10.dp))
-                Text(
-                    text = stringRes(R.string.repli_home__practice_caption),
-                    color = RepliMuted,
-                    fontSize = 12.sp,
-                )
-            }
+    RepliPage {
+        RepliCard(tinted = true) {
+            RepliLabel("A LITTLE HELP WITH THE NEXT REPLY", 11, RepliStyle.accent, bold = true)
+            Spacer(Modifier.height(12.dp))
+            RepliLabel("Good replies.\nLess overthinking.", 30, RepliStyle.ink, bold = true)
+            Spacer(Modifier.height(12.dp))
+            RepliLabel("Three ideas to make your own. Choose one, edit it, and send when you're ready.",
+                15, RepliStyle.muted)
+            Spacer(Modifier.height(20.dp))
+            RepliAction("Try a practice chat", {
+                context.startActivity(Intent(context, PracticeChatActivity::class.java))
+            })
+            Spacer(Modifier.height(10.dp))
+            RepliLabel("Sample conversation · nothing is sent automatically", 12, RepliStyle.muted)
         }
 
-        Text(
-            text = stringRes(R.string.repli_home__setup_title),
-            color = RepliInk,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        if (!isEnabled) {
-            FlorisErrorCard(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                showIcon = false,
-                text = stringRes(R.string.settings__home__ime_not_enabled),
-                onClick = { InputMethodUtils.showImeEnablerActivity(context) },
+        Spacer(Modifier.height(26.dp))
+        RepliSection("Your keyboard, with a little extra")
+        RepliCard {
+            RepliLabel("Set up once. Use in your chats.", 17, RepliStyle.ink, bold = true)
+            Spacer(Modifier.height(4.dp))
+            RepliLabel(
+                when {
+                    !enabled -> "Repli Keyboard is not enabled yet."
+                    !selected -> "Repli Keyboard is enabled. Choose it to start typing."
+                    else -> "Repli Keyboard is enabled and selected. You're ready to type."
+                }, 13, RepliStyle.muted,
             )
+            Spacer(Modifier.height(12.dp))
+            RepliAction("Open keyboard settings", { InputMethodUtils.showImeEnablerActivity(context) })
             Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = { InputMethodUtils.showImeEnablerActivity(context) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RepliAccent),
-            ) {
-                Text(stringRes(R.string.repli_home__enable_keyboard))
-            }
-        } else if (!isSelected) {
-            FlorisWarningCard(
-                modifier = Modifier.padding(horizontal = 16.dp),
-                showIcon = false,
-                text = stringRes(R.string.settings__home__ime_not_selected),
-                onClick = { InputMethodUtils.showImePicker(context) },
-            )
-            Spacer(Modifier.height(8.dp))
-            Button(
-                onClick = { InputMethodUtils.showImePicker(context) },
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-                colors = ButtonDefaults.buttonColors(containerColor = RepliAccent),
-            ) {
-                Text(stringRes(R.string.repli_home__choose_keyboard))
-            }
-        } else {
-            Card(
-                colors = CardDefaults.cardColors(containerColor = Color.White),
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp),
-            ) {
-                Text(
-                    text = stringRes(R.string.repli_home__ready),
-                    color = RepliInk,
-                    modifier = Modifier.padding(16.dp),
-                )
-            }
+            RepliAction("Choose Repli keyboard", { InputMethodUtils.showImePicker(context) }, filled = false)
         }
 
-        Spacer(Modifier.height(24.dp))
-        Text(
-            text = stringRes(R.string.repli_home__flow_title),
-            color = RepliInk,
-            fontSize = 20.sp,
-            fontWeight = FontWeight.SemiBold,
-            modifier = Modifier.padding(horizontal = 16.dp),
-        )
-        Spacer(Modifier.height(8.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text(text = stringRes(R.string.repli_home__flow_body), color = RepliMuted)
-                Spacer(Modifier.height(8.dp))
-                OutlinedButton(onClick = { navController.navigate(Routes.Settings.RepliReplies) }) {
-                    Text(stringRes(R.string.repli_home__flow_action))
+        Spacer(Modifier.height(26.dp))
+        RepliSection("From chat to reply")
+        RepliCard {
+            listOf(
+                Triple("1", "Open your chat", "Tap its message box and show the Repli keyboard."),
+                Triple("2", "Get three ideas", "Tap the reply icon in the suggestion strip. Confirm a recent message, or capture the visible chat."),
+                Triple("3", "Make it yours", "Tap a reply to insert it, edit it, then send it yourself."),
+            ).forEachIndexed { index, (number, title, description) ->
+                if (index > 0) Spacer(Modifier.height(20.dp))
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Top,
+                    horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Surface(modifier = Modifier.size(32.dp), color = RepliStyle.accentSoft,
+                        shape = androidx.compose.foundation.shape.RoundedCornerShape(12.dp)) {
+                        androidx.compose.foundation.layout.Box(contentAlignment = Alignment.Center) {
+                            RepliLabel(number, 14, RepliStyle.accent, bold = true)
+                        }
+                    }
+                    Column(Modifier.weight(1f)) {
+                        RepliLabel(title, 16, RepliStyle.ink, bold = true)
+                        Spacer(Modifier.height(4.dp))
+                        RepliLabel(description, 14, RepliStyle.muted)
+                    }
                 }
             }
+            Spacer(Modifier.height(20.dp))
+            RepliAction("Latest-message settings", {
+                navController.navigate(Routes.Settings.RepliSettings)
+            }, filled = false)
         }
 
         Spacer(Modifier.height(16.dp))
-        Card(
-            colors = CardDefaults.cardColors(containerColor = Color.White),
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(horizontal = 16.dp),
-        ) {
-            Column(Modifier.padding(16.dp)) {
-                Text(
-                    text = stringRes(R.string.repli_home__tone_title),
-                    color = RepliInk,
-                    fontSize = 17.sp,
-                    fontWeight = FontWeight.Bold,
-                )
-                Spacer(Modifier.height(8.dp))
-                Text(text = stringRes(R.string.repli_home__tone_body), color = RepliMuted)
-                Spacer(Modifier.height(14.dp))
-                OutlinedButton(onClick = { navController.navigate(Routes.Settings.RepliChats) }) {
-                    Text(stringRes(R.string.repli_home__tone_action))
-                }
-            }
+        RepliCard {
+            RepliLabel("A different tone for every chat", 17, RepliStyle.ink, bold = true)
+            Spacer(Modifier.height(8.dp))
+            RepliLabel("Save a chat from the keyboard, or give it a name and a tone here. No history import needed.",
+                14, RepliStyle.muted)
+            Spacer(Modifier.height(14.dp))
+            RepliAction("Manage your chats", {
+                navController.navigate(Routes.Settings.RepliChats)
+            }, filled = false)
         }
-        Spacer(Modifier.height(16.dp))
     }
 }

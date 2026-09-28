@@ -1,6 +1,6 @@
 # Repli Keyboard
 
-Repli Keyboard is an Android keyboard built from [FlorisBoard](https://github.com/florisboard/florisboard). This fork brings Repli's offline English word suggestions, conservative autocorrect, and on-device adaptive learning to FlorisBoard's active keyboard. The current keyboard layout is English QWERTY.
+Repli Keyboard is an Android keyboard built from [FlorisBoard](https://github.com/florisboard/florisboard). This [fork](https://github.com/Hoossayn/florisboard-repli) brings Repli's offline English word suggestions, conservative autocorrect, and on-device adaptive learning to FlorisBoard's active keyboard. The current keyboard layout is English QWERTY.
 
 ## What works
 

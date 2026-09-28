@@ -6,4 +6,4 @@ The learned model is bounded and saved in encrypted storage using Android Keysto
 
 The keyboard inherits other FlorisBoard features, such as clipboard history and extension management. Those features have their own settings and storage behavior. The Repli suggestion and adaptive learning code does not send typed text to a server.
 
-Source code and issue reports: [Hoossayn/florisboard](https://github.com/Hoossayn/florisboard). Repli Keyboard is based on FlorisBoard; upstream information is at [florisboard.org](https://florisboard.org/).
+Source code and issue reports: [Hoossayn/florisboard-repli](https://github.com/Hoossayn/florisboard-repli). Repli Keyboard is based on FlorisBoard; upstream information is at [florisboard.org](https://florisboard.org/).

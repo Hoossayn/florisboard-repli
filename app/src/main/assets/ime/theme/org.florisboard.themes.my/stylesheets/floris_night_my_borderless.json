@@ -476,6 +476,22 @@
     "shape": "circle()"
   },
 
+  "repli-panel": {
+    "background": "var(--background)",
+    "foreground": "var(--on-background)"
+  },
+  "repli-panel-card": {
+    "background": "var(--surface)",
+    "foreground": "var(--on-surface)",
+    "shape": "var(--shape-variant)",
+    "shadow-elevation": "2dp"
+  },
+  "repli-panel-button": {
+    "background": "var(--primary)",
+    "foreground": "var(--on-primary)",
+    "shape": "var(--shape-variant)"
+  },
+
   "subtype-panel": {
     "background": "var(--background)",
     "foreground": "var(--on-background)",

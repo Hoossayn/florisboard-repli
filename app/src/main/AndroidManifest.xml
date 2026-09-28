@@ -155,6 +155,13 @@
         <activity
             android:name="dev.patrickgold.florisboard.repli.practice.PracticeChatActivity"
             android:exported="false"
+            android:windowSoftInputMode="adjustResize" />
+        <!-- Repli full-screen context review (approval-gated, memory-only) -->
+        <activity
+            android:name="dev.patrickgold.florisboard.repli.review.FullScreenContextReviewActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
             android:windowSoftInputMode="adjustResize" />        <activity
             android:name="dev.patrickgold.florisboard.repli.voice.MicrophonePermissionActivity"
             android:exported="false"

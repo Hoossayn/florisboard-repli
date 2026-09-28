@@ -28,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.R
+import dev.patrickgold.florisboard.app.LocalNavController
+import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.lib.compose.FlorisScreen
 import dev.patrickgold.florisboard.repli.data.ProfileRepository
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
@@ -42,6 +44,7 @@ fun RepliChatsScreen() = FlorisScreen {
     previewFieldVisible = false
 
     content {
+        val navController = LocalNavController.current
         val context = LocalContext.current
         var profiles by remember { mutableStateOf(loadProfiles(context)) }
         var newName by remember { mutableStateOf("") }
@@ -128,6 +131,15 @@ fun RepliChatsScreen() = FlorisScreen {
 
         Column(modifier = Modifier.padding(16.dp)) {
             Text(stringRes(R.string.repli_chats__hint))
+            Spacer(Modifier.height(8.dp))
+            Button(
+                onClick = { navController.navigate(Routes.Settings.LearnByScrolling) },
+                modifier = Modifier.fillMaxWidth(),
+            ) {
+                Text(stringRes(R.string.repli_chats__learn_title))
+            }
+            Spacer(Modifier.height(4.dp))
+            Text(stringRes(R.string.repli_chats__learn_summary))
             Spacer(Modifier.height(8.dp))
             Button(
                 onClick = { context.startActivity(Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) },

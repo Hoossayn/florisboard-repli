@@ -41,6 +41,7 @@ import dev.patrickgold.florisboard.repli.ime.RepliReplyOrchestrator
 import dev.patrickgold.florisboard.ime.text.key.KeyVariation
 import dev.patrickgold.florisboard.lib.FlorisLocale
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
+import dev.patrickgold.florisboard.lib.devtools.flogError
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -129,12 +130,19 @@ class ImeController(
     fun commitRepliReply(text: String) {
         if (text.isEmpty()) return
         updateStateBlocking {
+            val conn = state.editor.ic.get()
+            if (conn == null) {
+                flogError { "RepliReply: commitRepliReply dropped, no input connection" }
+                return@updateStateBlocking
+            }
             val selection = state.content.selection
+            flogDebug { "RepliReply: commitRepliReply sel=${selection.start}..${selection.end}" }
             if (selection.start < 0 || selection.end < selection.start) return@updateStateBlocking
-            val range = selection.start..selection.end - 1
+            conn.beginBatchEdit()
+            conn.commitText(text, 1)
+            conn.endBatchEdit()
             val cursor = selection.start + text.length
             val cursorRange = K3TextRange(cursor, cursor)
-            state.editor.replaceText(range, text, cursorRange, null)
             resetContent(cursorRange, state.editor.getSurroundingText(WordPredictionEngine.BEFORE_LIMIT, WordPredictionEngine.AFTER_LIMIT))
             expectedContentQueue.push(state.content)
             refreshRepliSuggestions(state)

@@ -363,4 +363,20 @@ val FlorisImeThemeBaseStyle = SnyggStylesheet.v2 {
         textMaxLines = textMaxLines(1)
         textOverflow = textOverflow(TextOverflow.Ellipsis)
     }
+
+    FlorisImeUi.RepliPanel.elementName {
+        background = `var`("--background")
+        foreground = `var`("--on-background")
+    }
+    FlorisImeUi.RepliPanelCard.elementName {
+        background = `var`("--surface")
+        foreground = `var`("--on-surface")
+        shape = `var`("--shape-variant")
+        shadowElevation = size(2.dp)
+    }
+    FlorisImeUi.RepliPanelButton.elementName {
+        background = `var`("--primary")
+        foreground = `var`("--on-primary")
+        shape = `var`("--shape-variant")
+    }
 }

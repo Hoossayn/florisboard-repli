@@ -57,6 +57,9 @@ class PracticeChatActivity : Activity() {
             id = android.R.id.edit
             hint = "Type here, or try the reply icon"
             textSize = 16f
+            // The app theme is dark; the composer surface is light, so set explicit colors.
+            setTextColor(INK)
+            setHintTextColor(MUTED)
             inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE
             maxLines = 3
             setPadding(dp(16), dp(12), dp(16), dp(12))

@@ -24,6 +24,8 @@ import android.os.Looper
 import android.os.SystemClock
 import android.view.WindowManager
 import android.widget.Toast
+import dev.patrickgold.florisboard.lib.devtools.flogDebug
+import dev.patrickgold.florisboard.lib.devtools.flogError
 import dev.patrickgold.florisboard.repli.data.AutoScrollPreferences
 import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedContextEngine
 import com.google.mlkit.vision.common.InputImage
@@ -96,6 +98,7 @@ class ReplyScreenCaptureService : Service() {
         val consent: Intent? = if (Build.VERSION.SDK_INT >= 33) intent?.getParcelableExtra(EXTRA_CONSENT, Intent::class.java)
             else intent?.getParcelableExtra(EXTRA_CONSENT)
         if (requestId.isBlank() || consent == null || ReplyCaptureSession.state.value?.id != requestId) {
+            flogError { "RepliCapture: rejecting start (blank=${requestId.isBlank()} consent=${consent != null})" }
             stopSelf()
             return START_NOT_STICKY
         }
@@ -143,6 +146,7 @@ class ReplyScreenCaptureService : Service() {
         val viewport = state.viewport ?: return
         if (state.phase != ReplyPhase.RETURNING) return
         if (viewport.width != width || viewport.height != height) {
+            flogError { "RepliCapture: size mismatch viewport=${viewport.width}x${viewport.height} display=${width}x${height}" }
             fail("The screen size changed. Keep the phone in the same orientation and capture again.")
             return
         }
@@ -289,6 +293,7 @@ class ReplyScreenCaptureService : Service() {
         val state = ReplyCaptureSession.state.value?.takeIf { it.id == requestId } ?: return
         val baseTurns = state.turns
         captureResultDelivered = true
+        flogDebug { "RepliCapture: complete decision=$decision images=${capturedImages.size} turns=${capturedTurns.size}" }
         ReplyAutoScrollBridge.hideGuide()
         if (capturedImages.isNotEmpty()) {
             val images = capturedImages.toList()
@@ -411,6 +416,7 @@ class ReplyScreenCaptureService : Service() {
 
     private fun fail(message: String) {
         if (destroyed) return
+        flogError { "RepliCapture: fail: $message" }
         ReplyCaptureSession.fail(requestId, message)
         stopSelf()
     }

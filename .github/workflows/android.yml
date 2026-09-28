@@ -37,7 +37,7 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v4
       - name: Install required Android SDK packages
-        run: sdkmanager --install "cmake;3.30.5" "ndk;26.1.10909125" "platforms;android-37" "build-tools;36.0.0"
+        run: sdkmanager --install "cmake;3.30.5" "ndk;26.1.10909125" "platforms;android-37.0" "build-tools;36.0.0"
       - name: Build with Gradle
         run: ./gradlew clean assembleDebug
       - uses: actions/upload-artifact@v4

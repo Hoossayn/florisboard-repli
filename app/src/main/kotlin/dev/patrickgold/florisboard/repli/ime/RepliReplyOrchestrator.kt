@@ -87,6 +87,7 @@ data class ChatOption(val id: String, val name: String, val styleName: String)
 data class RepliReplyUiState(
     val active: Boolean = false,
     val status: String = "",
+    val generationError: String? = null,
     val busy: Boolean = false,
     val confirm: RepliConfirmChip? = null,
     val suggestions: List<String> = emptyList(),
@@ -501,7 +502,7 @@ class RepliReplyOrchestrator(
         pendingRemoteRequest = null
         lastApprovedRequest = null
         ReplyCaptureSession.update(state.id) {
-            it.copy(turns = edited.toList(), phase = ReplyPhase.CONTEXT, replies = emptyList())
+            it.copy(turns = edited.toList(), phase = ReplyPhase.CONTEXT, replies = emptyList(), generationError = null)
         }
     }
 
@@ -936,7 +937,8 @@ class RepliReplyOrchestrator(
         val unavailable = cloudUnavailableReason()
         if (unavailable != null) {
             ReplyCaptureSession.update(state.id) {
-                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW, message = unavailable)
+                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
+                    message = unavailable, generationError = unavailable)
             }
             return
         }
@@ -948,7 +950,7 @@ class RepliReplyOrchestrator(
         pendingMore = more
         ReplyCaptureSession.update(state.id) {
             it.copy(phase = ReplyPhase.GENERATING, replies = if (more) state.replies else emptyList(),
-                message = "Preparing cloud replies…")
+                message = "Preparing cloud replies…", generationError = null)
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
@@ -968,8 +970,9 @@ class RepliReplyOrchestrator(
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id == state.id) {
                         ReplyCaptureSession.update(state.id) {
+                            val reason = "Couldn't prepare cloud context. Check the reviewed messages and retry."
                             it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
-                                message = "Couldn't prepare cloud context. Check the reviewed messages and retry.")
+                                message = reason, generationError = reason)
                         }
                     }
                 }
@@ -981,7 +984,8 @@ class RepliReplyOrchestrator(
         val unavailable = cloudUnavailableReason()
         if (unavailable != null) {
             ReplyCaptureSession.update(state.id) {
-                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW, message = unavailable)
+                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
+                    message = unavailable, generationError = unavailable)
             }
             return
         }
@@ -990,7 +994,8 @@ class RepliReplyOrchestrator(
         ReviewEvidenceStore.discard(state.id)
         val keep = if (more) state.replies else emptyList()
         ReplyCaptureSession.update(state.id) {
-            it.copy(phase = ReplyPhase.GENERATING, replies = keep, message = "Generating cloud replies…")
+            it.copy(phase = ReplyPhase.GENERATING, replies = keep,
+                message = "Generating cloud replies…", generationError = null)
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
@@ -1003,7 +1008,7 @@ class RepliReplyOrchestrator(
                     ReplyCaptureSession.update(state.id) {
                         it.copy(phase = ReplyPhase.READY,
                             replies = (keep + replies).distinct().take(9),
-                            message = "Cloud replies · tap to insert, then edit")
+                            message = "Cloud replies · tap to insert, then edit", generationError = null)
                     }
                     flogDebug { "RepliReply: READY cloud replies=${replies.size}" }
                 }
@@ -1011,8 +1016,9 @@ class RepliReplyOrchestrator(
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id == state.id) {
                         ReplyCaptureSession.update(state.id) {
+                            val reason = "Cloud timed out. Check your connection and retry."
                             it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
-                                message = "Cloud timed out. Check your connection and retry.")
+                                message = reason, generationError = reason)
                         }
                     }
                 }
@@ -1029,7 +1035,8 @@ class RepliReplyOrchestrator(
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
                     ReplyCaptureSession.update(state.id) {
-                        it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW, message = status)
+                        it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
+                            message = status, generationError = status)
                     }
                 }
             }
@@ -1127,6 +1134,7 @@ class RepliReplyOrchestrator(
                 session == null -> current.status.ifBlank { defaultIdleStatus() }
                 else -> session.message
             },
+            generationError = session?.generationError,
             confirm = confirm,
             suggestions = session?.replies.orEmpty(),
             explanation = null,

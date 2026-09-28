@@ -46,7 +46,6 @@ import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.apptheme.FlorisAppTheme
 import dev.patrickgold.florisboard.app.ext.ExtensionImportScreenType
 import dev.patrickgold.florisboard.app.settings.repli.RepliBottomNav
-import dev.patrickgold.florisboard.app.setup.NotificationPermissionState
 import dev.patrickgold.florisboard.appContext
 import dev.patrickgold.florisboard.cacheManager
 import dev.patrickgold.florisboard.lib.FlorisLocale
@@ -54,7 +53,6 @@ import dev.patrickgold.florisboard.lib.compose.LocalPreviewFieldController
 import dev.patrickgold.florisboard.lib.compose.PreviewKeyboardField
 import dev.patrickgold.florisboard.lib.compose.rememberPreviewFieldController
 import dev.patrickgold.florisboard.lib.util.AppVersionUtils
-import dev.patrickgold.jetpref.datastore.model.collectAsState
 import dev.patrickgold.jetpref.datastore.ui.ProvideDefaultDialogPrefStrings
 import java.util.concurrent.atomic.AtomicBoolean
 import org.florisboard.lib.android.AndroidVersion
@@ -113,13 +111,6 @@ class FlorisAppActivity : ComponentActivity() {
         val isModelLoaded = AtomicBoolean(false)
         appContext.preferenceStoreLoaded.collectIn(lifecycleScope) { loaded ->
             if (!loaded || isModelLoaded.getAndSet(true)) return@collectIn
-            // Check if android 13+ is running and the NotificationPermission is not set
-            if (AndroidVersion.ATLEAST_API33_T &&
-                prefs.internal.notificationPermissionState.get() == NotificationPermissionState.NOT_SET
-            ) {
-                // update pref value to show the setup screen again
-                prefs.internal.isImeSetUp.set(false)
-            }
             AppVersionUtils.updateVersionOnInstallAndLastUse(this, prefs)
             setContent {
                 ProvideLocalizedResources(
@@ -175,8 +166,6 @@ class FlorisAppActivity : ComponentActivity() {
         val navController = rememberNavController()
         val previewFieldController = rememberPreviewFieldController()
 
-        val isImeSetUp by prefs.internal.isImeSetUp.collectAsState()
-
         CompositionLocalProvider(
             LocalNavController provides navController,
             LocalPreviewFieldController provides previewFieldController,
@@ -198,7 +187,7 @@ class FlorisAppActivity : ComponentActivity() {
                     Routes.AppNavHost(
                         modifier = Modifier.weight(1.0f),
                         navController = navController,
-                        startDestination = if (isImeSetUp) Routes.Settings.RepliHome::class else Routes.Setup.Screen::class,
+                        startDestination = Routes.Settings.RepliHome::class,
                     )
                     PreviewKeyboardField(previewFieldController)
                     RepliBottomNav(navController)

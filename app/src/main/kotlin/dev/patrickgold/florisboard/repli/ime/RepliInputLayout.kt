@@ -5,6 +5,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,6 +20,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
+import androidx.compose.material.icons.filled.Mic
+import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
@@ -188,7 +191,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                         frames = ui.reviewFrames,
                         canAddPage = ui.reviewFrames < 4,
                         instructions = ui.instructions,
-                        sourceStatus = ui.status,
+                        sourceStatus = if (ui.generationError == null) ui.status else "",
                         onFlip = orchestrator::flipReviewSpeaker,
                         onRemove = orchestrator::removeReviewTurn,
                         onDirection = orchestrator::openGuidance,
@@ -230,6 +233,21 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                         }
                     }
                 }
+            }
+        }
+        if (ui.reviewing && ui.generationError != null) {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 4.dp),
+                shape = CardShape,
+                color = Color(0xFFFFEDEC),
+                border = BorderStroke(1.dp, Color(0xFFE8B8B5)),
+            ) {
+                Text(
+                    ui.generationError.orEmpty(),
+                    modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
+                    color = Color(0xFF8B2925), fontSize = 12.sp,
+                    maxLines = 3, overflow = TextOverflow.Ellipsis,
+                )
             }
         }
         when {
@@ -311,11 +329,15 @@ private fun ReviewBody(
             Row(Modifier.padding(start = 11.dp, end = 3.dp, top = 6.dp, bottom = 6.dp),
                 verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Text(
-                        if (turn.fromMe) "You · change" else "Them · change",
-                        color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold,
-                        modifier = Modifier.clickable { onFlip(index) }.padding(bottom = 3.dp),
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(if (turn.fromMe) "You" else "Them",
+                            color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
+                        IconButton(onClick = { onFlip(index) }, modifier = Modifier.size(28.dp)) {
+                            Icon(Icons.Default.SwapHoriz,
+                                contentDescription = "Switch speaker for message ${index + 1}",
+                                tint = Accent, modifier = Modifier.size(17.dp))
+                        }
+                    }
                     Text(turn.text, color = Ink, fontSize = 13.sp, lineHeight = 17.sp)
                 }
                 IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(34.dp)) {
@@ -556,9 +578,14 @@ fun RepliInlineGuidance(modifier: Modifier = Modifier) {
                 Spacer(Modifier.weight(1f))
                 if (ui.voiceStatus != null) Text(ui.voiceStatus.orEmpty(), color = Muted,
                     fontSize = 10.sp, maxLines = 1)
-                SmallAction("Mic") { controller.startVoice(ui.guidanceText) }
+                IconButton(onClick = { controller.startVoice(ui.guidanceText) },
+                    modifier = Modifier.size(36.dp)) {
+                    Icon(Icons.Default.Mic, contentDescription = "Record reply direction",
+                        tint = Accent, modifier = Modifier.size(21.dp))
+                }
                 Button(onClick = controller::applyInlineGuidance,
-                    shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                    shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 8.dp)) {
                     Text(if (ui.suggestions.isNotEmpty()) "Generate more" else "Use direction",
                         color = Color.White, fontSize = 12.sp)
                 }

@@ -43,6 +43,28 @@
     <string name="repli_replies__suggest_from_keyboard">Suggest replies (from the keyboard)</string>
     <string name="repli_replies__mic_title">Voice guidance</string>
     <string name="repli_replies__mic_note">The microphone inside Reply direction transcribes on-device only. Audio is never saved or uploaded.</string>
+    <string name="repli_panel__title">Repli replies</string>
+    <string name="repli_panel__back">Back to keyboard</string>
+    <string name="repli_panel__suggest">Suggest replies</string>
+    <string name="repli_panel__direction">Reply direction</string>
+    <string name="repli_panel__clear">Clear</string>
+    <string name="repli_panel__more">More replies</string>
+    <string name="repli_panel__review_context">Review context</string>
+    <string name="repli_panel__review_title" comment="{frames} is the number of captured views">Review context · {frames} view(s). Check speakers; remove any non-message text.</string>
+    <string name="repli_panel__me">Me</string>
+    <string name="repli_panel__them">Them</string>
+    <string name="repli_panel__remove">Remove message</string>
+    <string name="repli_panel__use_context">Use this context</string>
+    <string name="repli_panel__add_view">Add view</string>
+    <string name="repli_panel__close">Close</string>
+    <string name="repli_panel__direction_title">Reply direction</string>
+    <string name="repli_panel__direction_hint">Optional instructions, e.g. decline politely</string>
+    <string name="repli_panel__apply">Apply</string>
+    <string name="repli_panel__clear_field">Clear text</string>
+    <string name="repli_panel__approval_title">Generate cloud replies?</string>
+    <string name="repli_panel__approval_summary" comment="{count} turns, {style} tone preset, {examples} writing examples">Exact payload: {count} messages · {style} tone · {examples} examples. Shown in full before anything is sent.</string>
+    <string name="repli_panel__generate">Generate replies</string>
+    <string name="repli_panel__use_on_device">Use on-device instead</string>
 
     <string name="key_popup__threedots_alt" comment="Content description for the three-dots icon in a key popup">Three-dot icon. If visible, indicates that more letters can be used if longer pressed.</string>
 
@@ -135,6 +157,8 @@
     <string name="quick_action__toggle_autocorrect" comment="Please mind the limited available space for the quick action strings">Autocorrect</string>
     <string name="quick_action__toggle_autocorrect__tooltip">Toggle autocorrect</string>
     <string name="quick_action__voice_input" comment="Please mind the limited available space for the quick action strings">Voice input</string>
+    <string name="quick_action__suggest_replies" comment="Please mind the limited available space for the quick action strings">Suggest replies</string>
+    <string name="quick_action__suggest_replies__tooltip">Suggest Repli replies for this chat</string>
     <string name="quick_action__voice_input__tooltip" comment="IME stands for Input Method Editor and is indirectly equivalent to 'keyboard'.">Open voice input provider</string>
     <string name="quick_action__floating_window_mode" comment="Please mind the limited available space for the quick action strings">Floating</string>
     <string name="quick_action__floating_window_mode__tooltip">Toggle floating keyboard window mode</string>

@@ -24,6 +24,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardReturn
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.automirrored.filled.Undo
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.automirrored.outlined.Assignment
 import androidx.compose.material.icons.automirrored.outlined.Backspace
 import androidx.compose.material.icons.filled.Close
@@ -121,6 +122,7 @@ fun Icon3(
             ImeIcons.MediaPanel -> Icons.Default.SentimentSatisfiedAlt
             ImeIcons.TextPanel -> context.vectorResource(R.drawable.ic_abc)
             ImeIcons.Noop -> Icons.Default.Close
+            ImeIcons.SuggestReplies -> Icons.Default.AutoAwesome
             ImeIcons.Redo -> Icons.AutoMirrored.Filled.Redo
             ImeIcons.ShowKeyboard -> Icons.Default.KeyboardDoubleArrowUp // TODO
             ImeIcons.SelectAll -> Icons.Default.SelectAll

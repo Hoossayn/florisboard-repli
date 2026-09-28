@@ -12,6 +12,7 @@ Repli Keyboard is an Android keyboard built from [FlorisBoard](https://github.co
 - **Repli chats**: save name-and-tone profiles (Casual/Warm/Direct), cycle tones, remove chats. Notification senders are suggested, never trusted until confirmed; groups and stale/ambiguous chats are excluded.
 - **Repli replies**: cloud toggle with per-request approval, opt-in notification access (one-to-one WhatsApp/Telegram only), and guided capture via an accessibility overlay that never reads content, gestures, types, or sends. Screen frames stay in memory; captures finish on Done, timeout, or frame limit.
 - On-device ML Kit Smart Reply with learned-style post-processing and automatic fallback; server-mediated generation only after approval. Voice guidance transcription is on-device only; audio is never saved or uploaded.
+- Keyboard integration: a **Suggest replies** smartbar action opens the Repli replies panel (sender confirm chips, tap-to-insert suggestions, context review with speaker correction, reply-direction guidance, and per-request cloud approval). Captures reuse the same consent → MediaProjection → OCR pipeline; replies insert as editable text and are never sent automatically.
 
 This is an early keyboard base. It is a separate Android app (`com.replyai.repli.keyboard`) and does not migrate learned data from the existing Repli app. The merged FlorisBoard alpha branch's older suggestion path was incompatible with its active keyboard, so this fork connects the Repli engine to the current keyboard controller.
 

@@ -37,6 +37,7 @@ object ImeIcons {
     val ClipboardPanel = flIcon("clipboard_panel")
     val MediaPanel = flIcon("media_panel")
     val TextPanel = flIcon("text_panel")
+    val SuggestReplies = flIcon("suggest_replies")
     val Noop = flIcon("noop")
     val Redo = flIcon("redo")
     val SelectAll = flIcon("select_all")

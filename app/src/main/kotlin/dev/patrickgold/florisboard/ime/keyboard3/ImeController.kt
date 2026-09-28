@@ -37,6 +37,7 @@ import dev.patrickgold.florisboard.ime.nlp.latin.repli.RepliInputAssistant
 import dev.patrickgold.florisboard.ime.nlp.latin.repli.TypingContext
 import dev.patrickgold.florisboard.ime.nlp.latin.repli.WordPrediction
 import dev.patrickgold.florisboard.ime.nlp.latin.repli.WordPredictionEngine
+import dev.patrickgold.florisboard.repli.ime.RepliReplyOrchestrator
 import dev.patrickgold.florisboard.ime.text.key.KeyVariation
 import dev.patrickgold.florisboard.lib.FlorisLocale
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
@@ -81,6 +82,16 @@ class ImeController(
     private val _repliSuggestions = MutableStateFlow<List<WordPrediction>>(emptyList())
     val repliSuggestions = _repliSuggestions.asStateFlow()
     val repliAssistant = context?.let { RepliInputAssistant(it) { refreshRepliSuggestions() } }
+    val repliReply = context?.let { ctx ->
+        val app = ctx.applicationContext
+        RepliReplyOrchestrator(
+            appContext = app,
+            insertText = { commitRepliReply(it) },
+            hideKeyboard = { FlorisImeService.hideUi() },
+            showKeyboard = { FlorisImeService.showUi() },
+            startActivity = { app.startActivity(it) },
+        )
+    }
 
     fun refreshRepliSuggestions() = refreshRepliSuggestions(activeState.value)
 
@@ -105,13 +116,27 @@ class ImeController(
         selectionEnd = content.selection.end,
     )
 
-    fun commitRepliSuggestion(prediction: WordPrediction) {
-        updateStateBlocking {
+    fun commitRepliSuggestion(prediction: WordPrediction) {        updateStateBlocking {
             if (!isRepliAllowed(state) || repliAssistant?.suggest(state.typingContext())?.contains(prediction) != true) return@updateStateBlocking
             val before = state.content.surroundingText.textBefore
             val previous = before.dropLast(prediction.removeBefore)
             replaceRepliWord(prediction)
             repliAssistant?.learn(previous, prediction.word)
+            refreshRepliSuggestions(state)
+        }
+    }
+
+    fun commitRepliReply(text: String) {
+        if (text.isEmpty()) return
+        updateStateBlocking {
+            val selection = state.content.selection
+            if (selection.start < 0 || selection.end < selection.start) return@updateStateBlocking
+            val range = selection.start..selection.end - 1
+            val cursor = selection.start + text.length
+            val cursorRange = K3TextRange(cursor, cursor)
+            state.editor.replaceText(range, text, cursorRange, null)
+            resetContent(cursorRange, state.editor.getSurroundingText(WordPredictionEngine.BEFORE_LIMIT, WordPredictionEngine.AFTER_LIMIT))
+            expectedContentQueue.push(state.content)
             refreshRepliSuggestions(state)
         }
     }
@@ -236,7 +261,9 @@ class ImeController(
                 flags = state.flags
                     .withKeyVariation(keyVariation)
                     .withImeUiMode(
-                        if (state.flags.imeUiMode != ImeUiMode.CLIPBOARD || prefs.clipboard.historyHideOnNextTextField.get()) {
+                        if (repliReply?.onStartInput(info) == true) {
+                            ImeUiMode.REPLI
+                        } else if (state.flags.imeUiMode != ImeUiMode.CLIPBOARD || prefs.clipboard.historyHideOnNextTextField.get()) {
                             ImeUiMode.TEXT
                         } else {
                             state.flags.imeUiMode
@@ -348,6 +375,13 @@ class ImeController(
                         flags = state.flags
                             .withImeUiMode(ImeUiMode.CLIPBOARD),
                     )
+                }
+                ImeActions.SuggestReplies -> {
+                    state = state.copy(
+                        flags = state.flags
+                            .withImeUiMode(ImeUiMode.REPLI),
+                    )
+                    repliReply?.beginSuggestion()
                 }
                 ImeActions.ShowImeWindow -> FlorisImeService.showUi()
                 ImeActions.HideImeWindow -> FlorisImeService.hideUi()

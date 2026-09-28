@@ -127,13 +127,30 @@ class ReplyCaptureSessionTest {
         assertFalse(ReplyCaptureSession.rebindEditorForReviewReturn("stale-request", recreated))
     }
 
-    @Test fun `confirmed notification context enters generation without screen capture`() {
+    @Test fun `confirmed notification context enters review without screen capture`() {
         val turns = listOf(ConversationTurn("Are you free tonight?", false))
         val state = ReplyCaptureSession.beginWithContext(editor, turns)
-        assertEquals(ReplyPhase.CONTEXT, state.phase)
+        assertEquals(ReplyPhase.REVIEW, state.phase)
         assertEquals(turns, state.turns)
         assertEquals(0, state.frames)
         assertTrue(state.replies.isEmpty())
+    }
+
+    @Test fun `editing ready replies keeps them through guidance and microphone permission`() {
+        val previous = ReplyCaptureSession.beginWithContext(editor,
+            listOf(ConversationTurn("Coffee?", false)))
+        ReplyCaptureSession.update(previous.id) {
+            it.copy(phase = ReplyPhase.READY, replies = listOf("Yes, tomorrow works"))
+        }
+        val draft = ReplyCaptureSession.editGuidance(editor)
+        assertEquals(listOf("Yes, tomorrow works"), draft.replies)
+        assertTrue(ReplyCaptureSession.beginMicrophonePermission(draft.id, "later in the week"))
+        assertEquals(listOf("Yes, tomorrow works"), ReplyCaptureSession.state.value?.replies)
+        assertTrue(ReplyCaptureSession.returnFromMicrophonePermission(draft.id, false))
+        assertEquals("later in the week", ReplyCaptureSession.resumeMicrophonePermission(draft.id, editor)?.draft)
+        ReplyCaptureSession.finishGuidance(draft.id, "later in the week", returnToReplies = true)
+        assertEquals(ReplyPhase.READY, ReplyCaptureSession.state.value?.phase)
+        assertEquals(listOf("Yes, tomorrow works"), ReplyCaptureSession.state.value?.replies)
     }
 
     @Test fun `microphone permission preserves only an uncommitted same-editor draft`() {

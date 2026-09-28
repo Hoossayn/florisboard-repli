@@ -38,8 +38,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
-import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -83,9 +83,9 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
         }
     }
     val keyboardHeight = FlorisImeSizing.imeUiHeight()
-    val expandedHeight = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.58f, 520.dp)
-    val panelHeight = if (ui.reviewing || ui.approval != null || ui.suggestions.isNotEmpty() || ui.guidanceOpen) {
-        maxOf(keyboardHeight, expandedHeight)
+    val moreHeight = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.48f, 440.dp)
+    val panelHeight = if (ui.suggestions.isNotEmpty() && !ui.guidanceOpen) {
+        maxOf(keyboardHeight, moreHeight)
     } else keyboardHeight
     Column(
         modifier = modifier.fillMaxWidth().height(panelHeight).background(Paper),
@@ -100,9 +100,14 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             ) {
                 Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringRes(R.string.repli_panel__back), tint = Ink)
             }
-            Text("Repli replies", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
+            Text(if (ui.reviewing) "Review context" else "Repli replies", color = Ink,
+                fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
             Spacer(Modifier.weight(1f))
-            if (ui.reviewing || ui.suggestions.isNotEmpty()) {
+            if (ui.reviewing) {
+                TextButton(onClick = orchestrator::openFullScreenReview) {
+                    Text("Full screen", color = Accent, fontSize = 11.sp)
+                }
+            } else if (ui.suggestions.isNotEmpty()) {
                 TextButton(onClick = { orchestrator.clear() }) { Text("Clear", color = Muted, fontSize = 12.sp) }
             }
         }
@@ -181,9 +186,9 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                         frames = ui.reviewFrames,
                         canAddPage = ui.reviewFrames < 4,
                         instructions = ui.instructions,
+                        sourceStatus = ui.status,
                         onFlip = orchestrator::flipReviewSpeaker,
                         onRemove = orchestrator::removeReviewTurn,
-                        onFullScreen = orchestrator::openFullScreenReview,
                         onDirection = orchestrator::openGuidance,
                         onAddPage = { orchestrator.beginCapture(append = true) },
                     )
@@ -192,13 +197,15 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                         turns = ui.contextTurns,
                         onReview = orchestrator::openReview,
                         onFullScreen = orchestrator::openFullScreenReview,
-                        onDevice = orchestrator::dismissApproval,
+                        status = ui.status,
                     )
                     ui.suggestions.isNotEmpty() -> {
-                        Text("Reply ideas", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-                        if (ui.status.isNotBlank()) {
-                            Text(ui.status, color = Muted, fontSize = 11.sp)
+                        Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                            Text("More replies", color = Ink, fontSize = 16.sp,
+                                fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                            SmallAction("Back to keyboard", orchestrator::backToKeyboard)
                         }
+                        if (ui.status.isNotBlank()) Text(ui.status, color = Muted, fontSize = 11.sp)
                         ui.suggestions.forEach { suggestion ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth().clickable { orchestrator.insertSuggestion(suggestion) },
@@ -206,14 +213,9 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                                 color = Color.White,
                                 border = BorderStroke(1.dp, Line),
                             ) {
-                                Text(suggestion, modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                                    color = Ink, fontSize = 14.sp)
+                                Text(suggestion, modifier = Modifier.padding(horizontal = 13.dp, vertical = 8.dp),
+                                    color = Ink, fontSize = 13.sp)
                             }
-                        }
-                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                            if (ui.canGenerateMore) SmallAction("More replies", orchestrator::requestMoreSuggestions)
-                            SmallAction("Review", orchestrator::openReview)
-                            SmallAction("Direction", orchestrator::openGuidance)
                         }
                     }
                     else -> {
@@ -236,6 +238,10 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                 onClick = orchestrator::useReviewedContext,
             )
             ui.approval != null -> PanelFooter("Generate cloud replies", onClick = orchestrator::approveGenerate)
+            ui.suggestions.isNotEmpty() -> MoreRepliesFooter(
+                onDirection = orchestrator::openGuidance,
+                onMore = orchestrator::requestMoreSuggestions,
+            )
             !ui.busy && ui.suggestions.isEmpty() -> PanelFooter("Capture chat", onClick = orchestrator::beginSuggestion)
         }
     }
@@ -274,33 +280,25 @@ private fun ReviewBody(
     frames: Int,
     canAddPage: Boolean,
     instructions: String?,
+    sourceStatus: String,
     onFlip: (Int) -> Unit,
     onRemove: (Int) -> Unit,
-    onFullScreen: () -> Unit,
     onDirection: () -> Unit,
     onAddPage: () -> Unit,
 ) {
     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("Review context", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold,
-            modifier = Modifier.weight(1f))
-        SmallAction("Full screen", onFullScreen)
-        Text("${turns.size} messages", color = Accent, fontSize = 11.sp,
-            modifier = Modifier.padding(start = 4.dp))
-    }
-    Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("${turns.size} messages · $frames captured view${if (frames == 1) "" else "s"}",
+            color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
         SmallAction("Add direction", onDirection)
         if (canAddPage) SmallAction("Add page", onAddPage)
     }
+    if (sourceStatus.isNotBlank()) Text(sourceStatus, color = Muted, fontSize = 11.sp,
+        maxLines = 2, overflow = TextOverflow.Ellipsis)
     if (instructions != null) {
-        Surface(shape = CardShape, color = AccentSoft) {
-            Column(Modifier.fillMaxWidth().padding(10.dp)) {
-                Text("Reply direction", color = Muted, fontSize = 11.sp, fontWeight = FontWeight.Bold)
-                Text(instructions, color = Ink, fontSize = 12.sp)
-            }
-        }
+        Text("Direction: $instructions", color = Accent, fontSize = 11.sp,
+            maxLines = 1, overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.fillMaxWidth().clickable(onClick = onDirection))
     }
-    Text(if (frames > 0) "Recent chat · $frames captured view${if (frames == 1) "" else "s"}"
-        else "Recent chat", color = Muted, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
     turns.forEachIndexed { index, turn ->
         Surface(
             modifier = Modifier.fillMaxWidth(),
@@ -333,18 +331,18 @@ private fun ApprovalBody(
     turns: List<ConversationTurn>,
     onReview: () -> Unit,
     onFullScreen: () -> Unit,
-    onDevice: () -> Unit,
+    status: String,
 ) {
     Text("Review before cloud generation", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     Text("${approval.turnCount} messages · ${approval.stylePreset} tone · ${approval.exampleCount} examples",
         color = Muted, fontSize = 12.sp)
+    if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp)
     approval.instructions?.let {
         Text("Direction: $it", color = Ink, fontSize = 12.sp)
     }
     Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
         SmallAction("Review context", onReview)
         SmallAction("Full screen", onFullScreen)
-        SmallAction("On-device", onDevice)
     }
     turns.takeLast(3).forEach { turn ->
         Surface(shape = CardShape, color = if (turn.fromMe) AccentSoft else Color.White,
@@ -354,6 +352,23 @@ private fun ApprovalBody(
                 Text(turn.text, color = Ink, fontSize = 12.sp, maxLines = 2,
                     overflow = TextOverflow.Ellipsis)
             }
+        }
+    }
+}
+
+@Composable
+private fun MoreRepliesFooter(onDirection: () -> Unit, onMore: () -> Unit) {
+    Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(modifier = Modifier.weight(1f).height(44.dp).clickable(onClick = onDirection),
+            shape = CardShape, color = Color.White, border = BorderStroke(1.dp, Line)) {
+            Box(Modifier.padding(horizontal = 12.dp), contentAlignment = Alignment.CenterStart) {
+                Text("Tell Repli what you want…", color = Muted, fontSize = 12.sp)
+            }
+        }
+        Button(onClick = onMore, modifier = Modifier.height(44.dp),
+            shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+            Text("More suggestions", color = Color.White, fontSize = 12.sp)
         }
     }
 }
@@ -470,6 +485,81 @@ private fun GuidanceSection(
                 modifier = Modifier.weight(2f).height(44.dp), shape = RoundedCornerShape(14.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
                 Text("Use direction", color = Color.White)
+            }
+        }
+    }
+}
+
+@Composable
+fun RepliInlineToneBar(modifier: Modifier = Modifier) {
+    val controller = LocalImeController.current.repliReply ?: return
+    val ui by controller.uiState.collectAsState()
+    Surface(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp)
+        .height(42.dp).clickable { controller.openChatPicker() },
+        color = Color.White, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+            Text("Chat tone", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+            Spacer(Modifier.weight(1f))
+            Text(ui.status.ifBlank { "Cloud replies · tap to insert, then edit" },
+                color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        }
+    }
+}
+
+@Composable
+fun RepliInlineSuggestionRow(modifier: Modifier = Modifier) {
+    val controller = LocalImeController.current.repliReply ?: return
+    val ui by controller.uiState.collectAsState()
+    val first = ui.suggestions.firstOrNull() ?: return
+    Row(modifier.fillMaxWidth().height(54.dp).background(Paper).padding(horizontal = 7.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
+        Surface(modifier = Modifier.weight(1f).height(44.dp).clickable { controller.insertSuggestion(first) },
+            color = Color.White, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+            Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                Text(first, color = Ink, fontSize = 12.sp, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+            }
+        }
+        Button(onClick = controller::openMoreReplies, modifier = Modifier.height(44.dp),
+            shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+            Text("More suggestions", color = Color.White, fontSize = 11.sp)
+        }
+    }
+}
+
+@Composable
+fun RepliInlineGuidance(modifier: Modifier = Modifier) {
+    val controller = LocalImeController.current.repliReply ?: return
+    val ui by controller.uiState.collectAsState()
+    Surface(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp),
+        color = Color.White, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+        Column(Modifier.padding(10.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text("Guide the next replies", color = Ink, fontSize = 15.sp,
+                    fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
+                IconButton(onClick = controller::cancelGuidance, modifier = Modifier.size(28.dp)) {
+                    Icon(Icons.Default.Close, contentDescription = "Close direction", tint = Muted)
+                }
+            }
+            Text("Say what you want changed, or generate another set", color = Muted, fontSize = 11.sp)
+            Box(Modifier.fillMaxWidth().height(62.dp).background(Paper, RoundedCornerShape(10.dp))
+                .padding(10.dp), contentAlignment = Alignment.TopStart) {
+                Text(if (ui.guidanceText.isEmpty()) "e.g. Shorter, warmer, or suggest next week"
+                     else ui.guidanceText + "▍", color = if (ui.guidanceText.isEmpty()) Muted else Ink,
+                     fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+            }
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                SmallAction("Clear", controller::clearGuidanceText)
+                Text("${ui.guidanceText.length}/500", color = Muted, fontSize = 11.sp)
+                Spacer(Modifier.weight(1f))
+                if (ui.voiceStatus != null) Text(ui.voiceStatus.orEmpty(), color = Muted,
+                    fontSize = 10.sp, maxLines = 1)
+                SmallAction("Mic") { controller.startVoice(ui.guidanceText) }
+                Button(onClick = controller::applyInlineGuidance,
+                    shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
+                    Text(if (ui.suggestions.isNotEmpty()) "Generate more" else "Use direction",
+                        color = Color.White, fontSize = 12.sp)
+                }
             }
         }
     }

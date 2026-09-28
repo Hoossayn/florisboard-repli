@@ -9,7 +9,7 @@
     <string name="repli_learning_clear_confirm">Delete Repli\'s learned words and phrases?</string>
     <string name="repli_learning_clear_action">Delete</string>
     <string name="repli_account__title">Repli account</string>
-    <string name="repli_account__description">Sign in to enable optional cloud replies. Typing, suggestions, and adaptive learning stay on-device. Network is used only to exchange your sign-in for a short-lived Repli session and to send captured text you explicitly approve to your configured Repli backend.</string>
+    <string name="repli_account__description">Sign in to generate Repli replies in the cloud. Keyboard typing, word suggestions, and adaptive learning stay on-device. Captured chat images may be read by Repli AI when cloud capture is available. You review the resulting messages and approve the exact reply request before it is sent.</string>
     <string name="repli_account__email">Email</string>
     <string name="repli_account__password">Password</string>
     <string name="repli_account__sign_in">Sign in</string>
@@ -32,16 +32,16 @@
     <string name="repli_chats__learn_summary">Capture your side of a chat while scrolling, then approve which messages to learn from.</string>
     <string name="repli_replies__title">Repli replies</string>
     <string name="repli_replies__cloud_title">Cloud replies</string>
-    <string name="repli_replies__cloud_toggle">Use cloud replies when signed in</string>
+    <string name="repli_replies__cloud_toggle">Enable cloud replies</string>
     <string name="repli_replies__cloud_on">On · each request shows the exact payload for approval before anything is sent.</string>
-    <string name="repli_replies__cloud_off">Off · replies come from the on-device model only.</string>
+    <string name="repli_replies__cloud_off">Off · reply generation is unavailable. Keyboard typing and word suggestions still work.</string>
     <string name="repli_replies__sign_in_first">Sign in first</string>
     <string name="repli_replies__context_title">Reply context</string>
     <string name="repli_replies__notification_access">Notification access</string>
     <string name="repli_replies__guided_capture">Guided capture</string>
     <string name="repli_replies__on">Enabled</string>
     <string name="repli_replies__off">Disabled</string>
-    <string name="repli_replies__how_it_works">Suggest replies from the keyboard in any chat composer. With one identifiable WhatsApp or Telegram conversation it uses the confirmed notification; otherwise it captures the visible view with on-device OCR. Cloud generation only runs after you approve the exact payload, and falls back to on-device replies on any failure. Nothing is ever sent automatically.</string>
+    <string name="repli_replies__how_it_works">Capture one or more chat views, check the extracted messages, and add optional direction. Repli AI reads captured images when cloud capture is available; the review panel labels on-device text recognition if that is used instead. Reply generation requires an internet connection, sign-in, and your approval of the exact cloud request. Tap a reply to insert and edit it. Nothing is sent as a chat message automatically.</string>
     <string name="repli_replies__suggest_from_keyboard">Suggest replies (from the keyboard)</string>
     <string name="repli_replies__try_practice_flow">Try the reply flow in a practice chat</string>
     <string name="repli_replies__mic_title">Voice guidance</string>
@@ -67,7 +67,6 @@
     <string name="repli_panel__approval_title">Generate cloud replies?</string>
     <string name="repli_panel__approval_summary" comment="{count} turns, {style} tone preset, {examples} writing examples">Exact payload: {count} messages · {style} tone · {examples} examples. Shown in full before anything is sent.</string>
     <string name="repli_panel__generate">Generate replies</string>
-    <string name="repli_panel__use_on_device">Use on-device instead</string>
     <string name="repli_voice__mic">Speak direction</string>
     <string name="repli_voice__pause">Pause</string>
     <string name="repli_voice__resume">Resume</string>
@@ -1002,7 +1001,7 @@
     <string name="ext__validation__enter_percent_size">Please enter a percent size</string>
     <string name="ext__validation__enter_number_between_0_100">Please enter a positive number between 0 and 100</string>
     <string name="ext__validation__hint_value_above_50_percent">Any value above 50% will behave as if you set 50%, consider lowering your percent size</string>
-    <string name="ext__update_box__internet_permission_hint">Network is only used for optional Repli account/cloud replies. Extension updates must still be checked manually.</string>
+    <string name="ext__update_box__internet_permission_hint">Network is used for Repli account, AI chat reading, and cloud replies. Extension updates must still be checked manually.</string>
     <string name="ext__update_box__search_for_updates">Search for updates</string>
     <string name="ext__addon_management_box__managing_placeholder">Managing {extensions}</string>
     <string name="ext__addon_management_box__addon_manager_info">All tasks related to importing, exporting, creating, customizing, and removing extensions can be handled through the centralized addon manager.</string>

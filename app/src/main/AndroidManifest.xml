@@ -13,6 +13,7 @@
          user-approved captured text to the configured first-party backend.
          Typing, suggestions, and adaptive learning stay on-device. -->
     <uses-permission android:name="android.permission.INTERNET"/>
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
 
     <!-- Repli capture/voice: foreground media-projection capture and on-device mic guidance -->
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
@@ -157,12 +158,6 @@
             android:excludeFromRecents="true"
             android:taskAffinity=""
             android:theme="@style/FlorisAppTheme.Transparent" />
-        <activity
-            android:name="dev.patrickgold.florisboard.repli.review.ReplyGuidanceActivity"
-            android:exported="false"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:windowSoftInputMode="adjustResize" />
         <!-- Repli practice chat (sample conversation, nothing sends) -->
         <activity
             android:name="dev.patrickgold.florisboard.repli.practice.PracticeChatActivity"

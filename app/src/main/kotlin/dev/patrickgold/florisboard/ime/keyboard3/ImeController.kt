@@ -91,6 +91,16 @@ class ImeController(
             hideKeyboard = { FlorisImeService.hideUi() },
             showKeyboard = { FlorisImeService.showUi() },
             startActivity = { app.startActivity(it) },
+            showTypingPanel = {
+                updateStateBlocking {
+                    state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.TEXT))
+                }
+            },
+            showRepliesPanel = {
+                updateStateBlocking {
+                    state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.REPLI))
+                }
+            },
         )
     }
 
@@ -117,7 +127,9 @@ class ImeController(
         selectionEnd = content.selection.end,
     )
 
-    fun commitRepliSuggestion(prediction: WordPrediction) {        updateStateBlocking {
+    fun commitRepliSuggestion(prediction: WordPrediction) {
+        if (repliReply?.isEditingInlineGuidance() == true) return
+        updateStateBlocking {
             if (!isRepliAllowed(state) || repliAssistant?.suggest(state.typingContext())?.contains(prediction) != true) return@updateStateBlocking
             val before = state.content.surroundingText.textBefore
             val previous = before.dropLast(prediction.removeBefore)
@@ -324,6 +336,10 @@ class ImeController(
 
         override fun emitText(value: K3String) {
             val committedText = value.toText()
+            if (repliReply?.isEditingInlineGuidance() == true) {
+                repliReply.typeGuidance(committedText)
+                return
+            }
             val before = state.content.surroundingText.textBefore
             val after = state.content.surroundingText.textAfter
             val word = before.takeLastWhile { it.isLetter() || it == '\'' || it == '’' }
@@ -357,6 +373,10 @@ class ImeController(
         }
 
         override fun emitDescriptor(descriptor: K3Descriptor) {
+            if (repliReply?.isEditingInlineGuidance() == true && descriptor in setOf(
+                    ImeActions.ArrowDown, ImeActions.ArrowLeft, ImeActions.ArrowRight,
+                    ImeActions.ArrowUp, ImeActions.Delete,
+                )) return
             val windowController = FlorisImeService.windowControllerOrNull()
             when (descriptor) {
                 // TODO evaluate use of modern cursor anchor API instead of sending raw key events
@@ -416,12 +436,20 @@ class ImeController(
         }
 
         override fun emitBackspace() {
+            if (repliReply?.isEditingInlineGuidance() == true) {
+                repliReply.deleteGuidance()
+                return
+            }
             super.emitBackspace()
             expectedContentQueue.push(state.content)
             refreshRepliSuggestions(state)
         }
 
         override fun emitEnter() {
+            if (repliReply?.isEditingInlineGuidance() == true) {
+                repliReply.typeGuidance("\n")
+                return
+            }
             val info = state.editor.info
             val isShiftPressed = false // TODO inputEventDispatcher.isPressed(KeyCode.SHIFT)
             if (info.imeOptions.flagNoEnterAction || info.inputAttributes.flagTextMultiLine && isShiftPressed) {
@@ -454,6 +482,7 @@ class ImeController(
         }
 
         fun emitForwardDelete() {
+            if (repliReply?.isEditingInlineGuidance() == true) return
             // TODO request additional text if too low on context length
             if (state.content.selection.isNotCollapsed()) {
                 emitBackspace()

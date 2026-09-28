@@ -35,6 +35,9 @@ import dev.patrickgold.florisboard.ime.keyboard3.ui.ImeKeyboardBox
 import dev.patrickgold.florisboard.ime.smartbar.IncognitoDisplayMode
 import dev.patrickgold.florisboard.ime.smartbar.InlineSuggestionsStyleCache
 import dev.patrickgold.florisboard.ime.smartbar.Smartbar
+import dev.patrickgold.florisboard.repli.ime.RepliInlineGuidance
+import dev.patrickgold.florisboard.repli.ime.RepliInlineSuggestionRow
+import dev.patrickgold.florisboard.repli.ime.RepliInlineToneBar
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.QuickActionsOverflowPanel
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.jetpref.datastore.model.collectAsState
@@ -48,6 +51,7 @@ fun TextInputLayout(
     val imeController = LocalImeController.current
 
     val imeState by imeController.activeState.collectAsState()
+    val repliUi = imeController.repliReply?.uiState?.collectAsState()?.value
     val isActionsOverflowVisible by remember {
         derivedStateOf { imeState.flags.isActionsOverflowVisible }
     }
@@ -62,7 +66,15 @@ fun TextInputLayout(
             .fillMaxWidth()
             .wrapContentHeight(),
     ) {
+        if (repliUi?.guidanceOpen == true) {
+            RepliInlineGuidance()
+        } else if (repliUi?.suggestions?.isNotEmpty() == true) {
+            RepliInlineToneBar()
+        }
         Smartbar()
+        if (repliUi?.guidanceOpen != true && repliUi?.suggestions?.isNotEmpty() == true) {
+            RepliInlineSuggestionRow()
+        }
         if (isActionsOverflowVisible) {
             QuickActionsOverflowPanel()
         } else {

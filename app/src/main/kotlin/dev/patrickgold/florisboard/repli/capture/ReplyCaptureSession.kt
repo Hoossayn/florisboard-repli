@@ -60,9 +60,9 @@ object ReplyCaptureSession {
         return ReplyCaptureState(
             id = UUID.randomUUID().toString(),
             editor = editor,
-            phase = ReplyPhase.CONTEXT,
+            phase = ReplyPhase.REVIEW,
             turns = turns.takeLast(ReplyConversation.MAX_TURNS),
-            message = "Finding replies on your phone…",
+            message = "Review this chat, then generate cloud replies",
             instructions = mutable.value?.takeIf { it.editor == editor }?.instructions,
         ).also { mutable.value = it }
     }
@@ -72,17 +72,19 @@ object ReplyCaptureSession {
         val previous = mutable.value?.takeIf { it.editor == editor }
         return (previous ?: ReplyCaptureState(id = "", editor = editor)).copy(
             id = UUID.randomUUID().toString(), phase = ReplyPhase.DRAFT,
-            replies = emptyList(), viewport = null, microphoneDraft = null, recordAfterPermission = false, message = "Add direction for this reply",
+            replies = if (previous?.phase == ReplyPhase.READY) previous.replies else emptyList(),
+            viewport = null, microphoneDraft = null, recordAfterPermission = false, message = "Add direction for this reply",
         ).also { mutable.value = it }
     }
 
-    fun finishGuidance(id: String, instructions: String?, reviewBeforeGenerate: Boolean = false) {
+    fun finishGuidance(id: String, instructions: String?, reviewBeforeGenerate: Boolean = false,
+        returnToReplies: Boolean = false) {
         val prepared = RemoteReplyPrivacyPolicy.prepareInstructions(instructions)
         update(id) {
             if (it.phase != ReplyPhase.DRAFT) return@update it
             it.copy(instructions = prepared,
                 phase = when {
-                    it.turns.isEmpty() -> ReplyPhase.READY
+                    it.turns.isEmpty() || returnToReplies && it.replies.isNotEmpty() -> ReplyPhase.READY
                     reviewBeforeGenerate -> ReplyPhase.REVIEW
                     else -> ReplyPhase.CONTEXT
                 },
@@ -100,7 +102,7 @@ object ReplyCaptureSession {
         val current = mutable.value ?: return false
         if (current.id != id || current.phase != ReplyPhase.DRAFT ||
             draft.length > RemoteReplyPrivacyPolicy.MAX_INSTRUCTION_CHARACTERS) return false
-        mutable.value = current.copy(phase = ReplyPhase.MICROPHONE_PERMISSION, microphoneDraft = draft, recordAfterPermission = false, replies = emptyList())
+        mutable.value = current.copy(phase = ReplyPhase.MICROPHONE_PERMISSION, microphoneDraft = draft, recordAfterPermission = false)
         return true
     }
 

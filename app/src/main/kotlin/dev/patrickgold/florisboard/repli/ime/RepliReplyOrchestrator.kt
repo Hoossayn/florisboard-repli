@@ -3,6 +3,8 @@ package dev.patrickgold.florisboard.repli.ime
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.ConnectivityManager
+import android.net.NetworkCapabilities
 import android.os.Build
 import android.provider.Settings
 import android.util.DisplayMetrics
@@ -38,16 +40,15 @@ import dev.patrickgold.florisboard.repli.profile.ProfileMatcher
 import dev.patrickgold.florisboard.repli.profile.RecentMessage
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
 import dev.patrickgold.florisboard.repli.profile.VoiceStyle
-import dev.patrickgold.florisboard.repli.suggestions.OnDeviceReplyEngine
 import dev.patrickgold.florisboard.repli.suggestions.PreparedRemoteReplyRequest
 import dev.patrickgold.florisboard.repli.suggestions.RemoteReplyPrivacyPolicy
 import dev.patrickgold.florisboard.repli.suggestions.RepliAccountSessionProvider
-import dev.patrickgold.florisboard.repli.suggestions.ReplyGenerationCoordinator
 import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedContextEngine
 import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedReplyEngine
+import dev.patrickgold.florisboard.repli.suggestions.RemoteReplyException
+import dev.patrickgold.florisboard.repli.suggestions.CloudReplyFailure
 import dev.patrickgold.florisboard.repli.review.FullScreenContextReviewActivity
 import dev.patrickgold.florisboard.repli.review.FullScreenContextReviewSession
-import dev.patrickgold.florisboard.repli.review.ReplyGuidanceActivity
 import dev.patrickgold.florisboard.repli.voice.MicrophonePermissionActivity
 import dev.patrickgold.florisboard.repli.voice.VoiceDeadline
 import dev.patrickgold.florisboard.repli.voice.VoiceFailure
@@ -57,6 +58,8 @@ import dev.patrickgold.florisboard.repli.voice.VoiceGuidanceText
 import dev.patrickgold.florisboard.repli.voice.VoicePhase
 import dev.patrickgold.florisboard.repli.voice.VoiceRecordingState
 import android.Manifest
+import java.io.IOException
+import java.net.SocketTimeoutException
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -121,17 +124,16 @@ class RepliReplyOrchestrator(
     private val hideKeyboard: () -> Unit,
     private val showKeyboard: () -> Unit,
     private val startActivity: (Intent) -> Unit,
+    private val showTypingPanel: () -> Unit,
+    private val showRepliesPanel: () -> Unit,
 ) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private val mutable = MutableStateFlow(RepliReplyUiState())
     val uiState: StateFlow<RepliReplyUiState> = mutable.asStateFlow()
 
-    private val coordinator = ReplyGenerationCoordinator(
-        device = OnDeviceReplyEngine(),
-        remote = BuildConfig.REPLI_BACKEND_URL
-            .takeIf(ServerMediatedReplyEngine::isConfigured)
-            ?.let { ServerMediatedReplyEngine(it, RepliAccountSessionProvider) },
-    )
+    private val remoteEngine = BuildConfig.REPLI_BACKEND_URL
+        .takeIf(ServerMediatedReplyEngine::isConfigured)
+        ?.let { ServerMediatedReplyEngine(it, RepliAccountSessionProvider) }
     private val contextEngine = BuildConfig.REPLI_BACKEND_URL
         .takeIf(ServerMediatedReplyEngine::isConfigured)
         ?.let { ServerMediatedContextEngine(it, RepliAccountSessionProvider) }
@@ -148,6 +150,11 @@ class RepliReplyOrchestrator(
     private var confirmedIdentity: ConfirmedConversationIdentity? = null
     private var contextLoadGeneration = 0
     private var pendingRemoteRequest: PreparedRemoteReplyRequest? = null
+    private var lastApprovedRequest: PreparedRemoteReplyRequest? = null
+    private var pendingMore = false
+    private var moreRepliesExpanded = false
+    private var guidanceDraftText = ""
+    private var guidanceForMore = false
     private var reviewingTurns: MutableList<ConversationTurn>? = null
     private var guidanceDraftId: String? = null
     private var guidanceReviewId: String? = null
@@ -320,10 +327,22 @@ class RepliReplyOrchestrator(
         clear()
     }
 
+    fun openMoreReplies() {
+        moreRepliesExpanded = true
+        showRepliesPanel()
+        publish()
+    }
+
+    fun backToKeyboard() {
+        moreRepliesExpanded = false
+        showTypingPanel()
+        publish()
+    }
+
     fun requestMoreSuggestions() {
         val state = ReplyCaptureSession.state.value ?: return
         if (state.phase != ReplyPhase.READY || state.replies.isEmpty() || state.busy) return
-        generate(state, more = true)
+        generate(state, approved = lastApprovedRequest, more = true)
     }
 
     fun beginCapture(append: Boolean) {
@@ -344,6 +363,7 @@ class RepliReplyOrchestrator(
         captureLaunch?.cancel()
         closeVoiceRecorder()
         pendingRemoteRequest = null
+        lastApprovedRequest = null
         reviewingTurns = null
         guidanceDraftId = null
         guidanceOverride = null
@@ -394,9 +414,14 @@ class RepliReplyOrchestrator(
         voiceReturnExpiry?.cancel()
         closeVoiceRecorder()
         pendingRemoteRequest = null
+        lastApprovedRequest = null
+        pendingMore = false
+        moreRepliesExpanded = false
         reviewingTurns = null
         guidanceDraftId = null
         guidanceReviewId = null
+        guidanceDraftText = ""
+        guidanceForMore = false
         guidanceOverride = null
         fsOriginal = null
         ReplyCaptureSession.state.value?.id?.let { FullScreenContextReviewSession.end(it) }
@@ -408,6 +433,7 @@ class RepliReplyOrchestrator(
 
     fun openChatPicker() {
         update { it.copy(active = true, showChatPicker = true) }
+        showRepliesPanel()
     }
 
     fun closeChatPicker() {
@@ -424,9 +450,15 @@ class RepliReplyOrchestrator(
         }
         selectedProfileId = id
         confirmedIdentity = null
+        lastApprovedRequest = null
         val current = ReplyCaptureSession.state.value
-        if (current != null && current.turns.isNotEmpty() && !current.busy && current.phase !in setOf(ReplyPhase.REVIEW, ReplyPhase.DRAFT)) {
-            generate(current)
+        if (current != null && current.turns.isNotEmpty() && !current.busy &&
+            current.phase in setOf(ReplyPhase.APPROVAL, ReplyPhase.READY)) {
+            pendingRemoteRequest = null
+            ReplyCaptureSession.update(current.id) {
+                it.copy(phase = ReplyPhase.REVIEW, replies = emptyList(),
+                    message = "Chat tone changed · review before generating")
+            }
         }
         publish()
     }
@@ -467,6 +499,7 @@ class RepliReplyOrchestrator(
         if (edited.isEmpty()) return
         reviewingTurns = null
         pendingRemoteRequest = null
+        lastApprovedRequest = null
         ReplyCaptureSession.update(state.id) {
             it.copy(turns = edited.toList(), phase = ReplyPhase.CONTEXT, replies = emptyList())
         }
@@ -480,6 +513,7 @@ class RepliReplyOrchestrator(
         val current = ReplyCaptureSession.state.value
         if (current?.busy == true) return
         val fromReview = current?.phase == ReplyPhase.REVIEW
+        guidanceForMore = current?.phase == ReplyPhase.READY && current.replies.isNotEmpty()
         val editedReview = reviewingTurns?.toList()
         if (fromReview && editedReview?.isNotEmpty() == true) {
             ReplyCaptureSession.update(current.id) { it.copy(turns = editedReview) }
@@ -491,32 +525,59 @@ class RepliReplyOrchestrator(
         guidanceDraftId = draft.id
         guidanceReviewId = draft.id.takeIf { fromReview }
         guidanceOverride = null
+        guidanceDraftText = draft.instructions.orEmpty()
         reviewingTurns = null
         update { it.copy(active = true) }
-        fsOriginal = target
-        FullScreenContextReviewSession.begin(draft.id)
-        try {
-            startActivity(ReplyGuidanceActivity.intent(appContext, draft.id, fromReview))
-        } catch (_: Exception) {
-            FullScreenContextReviewSession.end(draft.id)
-            fsOriginal = null
-            cancelGuidance()
-            update { it.copy(status = "Couldn't open reply direction editor") }
+        showTypingPanel()
+    }
+
+    fun isEditingInlineGuidance(): Boolean = guidanceDraftId != null &&
+        ReplyCaptureSession.state.value?.phase == ReplyPhase.DRAFT
+
+    fun typeGuidance(text: String) {
+        if (!isEditingInlineGuidance()) return
+        val next = guidanceDraftText + text
+        if (next.length <= RemoteReplyPrivacyPolicy.MAX_INSTRUCTION_CHARACTERS) {
+            guidanceDraftText = next
+            publish()
         }
     }
 
+    fun deleteGuidance() {
+        if (!isEditingInlineGuidance() || guidanceDraftText.isEmpty()) return
+        guidanceDraftText = guidanceDraftText.dropLast(1)
+        publish()
+    }
+
+    fun clearGuidanceText() {
+        if (!isEditingInlineGuidance()) return
+        guidanceDraftText = ""
+        publish()
+    }
+
+    fun applyInlineGuidance() = applyGuidance(guidanceDraftText)
+
     fun applyGuidance(text: String) {
         val id = guidanceDraftId ?: return
+        val forMore = guidanceForMore
         try {
-            ReplyCaptureSession.finishGuidance(id, text, reviewBeforeGenerate = guidanceReviewId == id)
+            ReplyCaptureSession.finishGuidance(id, text,
+                reviewBeforeGenerate = guidanceReviewId == id, returnToReplies = forMore)
         } catch (_: IllegalArgumentException) {
             update { it.copy(status = "Response guidance is too long (500 characters max)") }
             return
         }
         guidanceDraftId = null
         guidanceReviewId = null
+        guidanceDraftText = ""
+        guidanceForMore = false
         guidanceOverride = null
         closeVoiceRecorder()
+        showRepliesPanel()
+        if (forMore) {
+            lastApprovedRequest = null
+            ReplyCaptureSession.state.value?.takeIf { it.id == id }?.let { generate(it, more = true) }
+        }
         publish()
     }
 
@@ -525,12 +586,16 @@ class RepliReplyOrchestrator(
         val state = ReplyCaptureSession.state.value
         if (id != null && state != null && state.id == id) {
             // Closing keeps the previously applied direction; typed text is discarded.
-            ReplyCaptureSession.finishGuidance(id, state.instructions, reviewBeforeGenerate = guidanceReviewId == id)
+            ReplyCaptureSession.finishGuidance(id, state.instructions,
+                reviewBeforeGenerate = guidanceReviewId == id, returnToReplies = guidanceForMore)
         }
         guidanceDraftId = null
         guidanceReviewId = null
+        guidanceDraftText = ""
+        guidanceForMore = false
         guidanceOverride = null
         closeVoiceRecorder()
+        showRepliesPanel()
         publish()
     }
 
@@ -638,6 +703,7 @@ class RepliReplyOrchestrator(
                 } else {
                     voiceAcceptedRev += 1
                     voiceAccepted = accepted
+                    guidanceDraftText = accepted
                     voiceBase = accepted
                 }
             }
@@ -674,16 +740,9 @@ class RepliReplyOrchestrator(
             if (fresh.context != displayed.context || fresh.instructions != displayed.instructions) return@launch
             withContext(Dispatchers.Main) {
                 if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
-                generate(state, approved = displayed)
+                generate(state, approved = displayed, more = pendingMore)
             }
         }
-    }
-
-    fun dismissApproval() {
-        val state = ReplyCaptureSession.state.value ?: return
-        if (state.phase != ReplyPhase.APPROVAL) return
-        // Explicit on-device choice: never re-enter remote approval.
-        generateNow(state, approved = null, more = false)
     }
 
     fun openFullScreenReview() {
@@ -743,12 +802,18 @@ class RepliReplyOrchestrator(
             }
         }
         when (state.phase) {
-            ReplyPhase.RETURNING, ReplyPhase.READING -> if (state.viewport != null) hideKeyboard()
+            ReplyPhase.RETURNING, ReplyPhase.READING -> {
+                if (state.viewport != null) hideKeyboard() else if (state.awaitingKeyboardReturn) showKeyboard()
+            }
             ReplyPhase.MICROPHONE_RETURNING -> resumeAfterMicrophonePermission(state)
-            ReplyPhase.CAPTURE_REVIEW -> handleCaptureReview(state)
+            ReplyPhase.CAPTURE_REVIEW -> {
+                showKeyboard()
+                handleCaptureReview(state)
+            }
             ReplyPhase.REVIEW -> {
                 reviewingTurns = state.turns.toMutableList()
                 if (state.awaitingKeyboardReturn) showKeyboard()
+                showRepliesPanel()
             }
             ReplyPhase.CONTEXT -> {
                 reviewingTurns = null
@@ -757,6 +822,10 @@ class RepliReplyOrchestrator(
             }
             ReplyPhase.ERROR -> {
                 if (state.awaitingKeyboardReturn) showKeyboard()
+                showRepliesPanel()
+            }
+            ReplyPhase.READY -> {
+                if (moreRepliesExpanded) showRepliesPanel() else showTypingPanel()
             }
             else -> Unit
         }
@@ -776,7 +845,9 @@ class RepliReplyOrchestrator(
             }
             guidanceDraftId = current.id
             guidanceOverride = resumed.draft
+            guidanceDraftText = resumed.draft
             voiceBase = resumed.draft
+            showTypingPanel()
             if (resumed.startRecording && isMicGranted()) {
                 closeVoiceRecorder()
                 voiceDraftId = current.id
@@ -803,7 +874,7 @@ class RepliReplyOrchestrator(
                 ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
             } else {
                 ReplyCaptureSession.update(state.id) {
-                    it.copy(phase = ReplyPhase.REVIEW, viewport = null, turns = turns, message = "Review the captured messages, then generate replies")
+                    it.copy(phase = ReplyPhase.REVIEW, viewport = null, turns = turns, message = "On-device text · AI reading unavailable. Check messages before cloud generation.")
                 }
             }
             return
@@ -815,7 +886,7 @@ class RepliReplyOrchestrator(
             }
             try {
                 ReviewEvidenceStore.put(state.id, taken.images)
-                val ai = withTimeout(AI_READING_TIMEOUT_MS) { contextEngine!!.extract(taken.images) }
+                val ai = withTimeout(AI_READING_TIMEOUT_MS) { contextEngine.extract(taken.images) }
                 if (ReplyCaptureSession.state.value?.id != state.id) {
                     ReviewEvidenceStore.discard(state.id)
                     return@launch
@@ -823,15 +894,20 @@ class RepliReplyOrchestrator(
                 ai.contactName?.let { selectCapturedContact(it) }
                 val captured = ReplyConversation.mergeVisualBubbles(ai.bubbles.orEmpty(), taken.images.size)
                     .ifEmpty { ai.turns }
-                val merged = ReplyConversation.reconcileAiWithLocal(captured, taken.localTurns)
-                    .let { ReplyConversation.mergeCapture(taken.baseTurns, it) }
+                // AI visual bubbles are authoritative. Local OCR can introduce duplicate or
+                // misread text; use it only when AI returned no usable bubbles.
+                val usedLocalText = captured.isEmpty()
+                val readTurns = captured.ifEmpty { taken.localTurns }
+                val merged = ReplyConversation.mergeCapture(taken.baseTurns, readTurns)
                 withContext(Dispatchers.Main) {
                     if (merged.isEmpty()) {
                         ReviewEvidenceStore.discard(state.id)
                         ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
                     } else {
                         ReplyCaptureSession.update(state.id) {
-                            it.copy(phase = ReplyPhase.REVIEW, turns = merged, message = "Review the captured messages, then generate replies")
+                            it.copy(phase = ReplyPhase.REVIEW, turns = merged, message =
+                                if (usedLocalText) "AI found no messages · review the on-device text"
+                                else "AI read ${taken.images.size} captured view(s) · check speakers and text before cloud generation")
                         }
                     }
                 }
@@ -857,17 +933,22 @@ class RepliReplyOrchestrator(
     }
 
     private fun generate(state: ReplyCaptureState, approved: PreparedRemoteReplyRequest? = null, more: Boolean = false) {
-        if (useRemote() && approved == null && !more) {
-            prepareRemoteApproval(state)
+        val unavailable = cloudUnavailableReason()
+        if (unavailable != null) {
+            ReplyCaptureSession.update(state.id) {
+                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW, message = unavailable)
+            }
             return
         }
-        generateNow(state, approved, more)
+        if (approved == null) prepareRemoteApproval(state, more) else generateNow(state, approved, more)
     }
 
-    private fun prepareRemoteApproval(state: ReplyCaptureState) {
+    private fun prepareRemoteApproval(state: ReplyCaptureState, more: Boolean = false) {
         generation?.cancel()
+        pendingMore = more
         ReplyCaptureSession.update(state.id) {
-            it.copy(phase = ReplyPhase.GENERATING, replies = emptyList(), message = "Preparing context review…")
+            it.copy(phase = ReplyPhase.GENERATING, replies = if (more) state.replies else emptyList(),
+                message = "Preparing cloud context review…")
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
@@ -877,80 +958,97 @@ class RepliReplyOrchestrator(
                     state.turns, profile?.style, snapshot, instructions = state.instructions,
                 )
                 withContext(Dispatchers.Main) {
-                    val current = ReplyCaptureSession.state.value
-                    if (current?.id != state.id) return@withContext
+                    if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
                     pendingRemoteRequest = prepared
                     ReplyCaptureSession.update(state.id) {
-                        it.copy(phase = ReplyPhase.APPROVAL, replies = emptyList(), message = "")
+                        it.copy(phase = ReplyPhase.APPROVAL, message = "Review what Repli will send to the cloud")
                     }
-                    publish()
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (_: Exception) {
                 withContext(Dispatchers.Main) {
-                    if (ReplyCaptureSession.state.value?.id == state.id) generateNow(state, null, more = false)
+                    if (ReplyCaptureSession.state.value?.id == state.id) {
+                        ReplyCaptureSession.update(state.id) {
+                            it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.REVIEW,
+                                message = "Couldn't prepare cloud context. Check the reviewed messages and retry.")
+                        }
+                    }
                 }
             }
         }
     }
 
-    private fun generateNow(state: ReplyCaptureState, approved: PreparedRemoteReplyRequest?, more: Boolean) {
+    private fun generateNow(state: ReplyCaptureState, approved: PreparedRemoteReplyRequest, more: Boolean) {
+        val unavailable = cloudUnavailableReason()
+        if (unavailable != null) {
+            ReplyCaptureSession.update(state.id) {
+                it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.APPROVAL, message = unavailable)
+            }
+            return
+        }
+        val engine = remoteEngine ?: return
         generation?.cancel()
         ReviewEvidenceStore.discard(state.id)
-        pendingRemoteRequest = null
         val keep = if (more) state.replies else emptyList()
         ReplyCaptureSession.update(state.id) {
-            it.copy(
-                phase = ReplyPhase.GENERATING,
-                replies = keep,
-                message = if (approved == null) "Finding replies on your phone…" else "Generating from approved context…",
-            )
+            it.copy(phase = ReplyPhase.GENERATING, replies = keep, message = "Generating cloud replies…")
         }
-        publish()
         generation = scope.launch(Dispatchers.IO) {
             try {
-                val style = selectedProfile()?.let { LearnedStyleRepository(appContext).getStyle(it.id) }
-                val result = withTimeout(GENERATION_TIMEOUT_MS) {
-                    coordinator.suggest(state.turns, style, approved, state.instructions)
-                }
+                val replies = withTimeout(GENERATION_TIMEOUT_MS) { engine.suggest(approved) }
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
+                    pendingRemoteRequest = null
+                    lastApprovedRequest = approved
+                    pendingMore = false
                     ReplyCaptureSession.update(state.id) {
-                        it.copy(
-                            phase = ReplyPhase.READY,
-                            replies = (keep + result.replies).distinct().take(3),
-                            message = result.explanation,
-                        )
+                        it.copy(phase = ReplyPhase.READY,
+                            replies = (keep + replies).distinct().take(9),
+                            message = "Cloud replies · tap to insert, then edit")
                     }
-                    flogDebug { "RepliReply: READY replies=${result.replies.size} origin=${result.origin}" }
-                    publish()
+                    flogDebug { "RepliReply: READY cloud replies=${replies.size}" }
                 }
-            } catch (_: kotlinx.coroutines.TimeoutCancellationException) {
+            } catch (timeout: kotlinx.coroutines.TimeoutCancellationException) {
                 withContext(Dispatchers.Main) {
-                    if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
-                    if (more) {
-                        ReplyCaptureSession.update(state.id) { it.copy(phase = ReplyPhase.READY, message = "More replies timed out. Try again.") }
-                    } else {
-                        ReplyCaptureSession.fail(state.id, "Reply generation timed out. Review the context and try again.")
+                    if (ReplyCaptureSession.state.value?.id == state.id) {
+                        ReplyCaptureSession.update(state.id) {
+                            it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.APPROVAL,
+                                message = "Cloud timed out. Check your connection and retry.")
+                        }
                     }
-                    publish()
                 }
             } catch (cancellation: CancellationException) {
                 throw cancellation
             } catch (error: Exception) {
-                flogError { "RepliReply: generateNow failed: ${error.message}" }
+                flogError { "RepliReply: cloud generation failed: ${error.message}" }
+                val status = when (error) {
+                    is kotlinx.coroutines.TimeoutCancellationException, is SocketTimeoutException -> "Cloud timed out. Check your connection and retry."
+                    is IOException -> "No internet connection. Connect and try again."
+                    is RemoteReplyException -> error.reason.label + " · try again"
+                    else -> CloudReplyFailure.UNAVAILABLE.label + " · try again"
+                }
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
-                    if (more) {
-                        ReplyCaptureSession.update(state.id) { it.copy(phase = ReplyPhase.READY, message = "Couldn't generate more replies. Try again.") }
-                    } else {
-                        ReplyCaptureSession.fail(state.id, "Neither reply engine could generate replies. Review the context and retry.")
+                    ReplyCaptureSession.update(state.id) {
+                        it.copy(phase = if (more) ReplyPhase.READY else ReplyPhase.APPROVAL, message = status)
                     }
-                    publish()
                 }
             }
         }
+    }
+
+    private fun cloudUnavailableReason(): String? {
+        if (remoteEngine == null) return "Cloud replies aren't configured in this build."
+        if (!RemoteGenerationPreferences(appContext).enabled) return "Enable cloud replies in Repli settings to generate."
+        if (RepliAccountSessionRepository.bearerToken() == null &&
+            !RepliFirebaseAccountManager.state.value.signedIn) return "Sign in to Repli to generate cloud replies."
+        val manager = appContext.getSystemService(ConnectivityManager::class.java)
+        val capabilities = manager?.activeNetwork?.let(manager::getNetworkCapabilities)
+        if (capabilities?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) != true) {
+            return "No internet connection. Connect and try again."
+        }
+        return null
     }
 
     // Helpers
@@ -964,18 +1062,6 @@ class RepliReplyOrchestrator(
 
     private fun selectedProfile(): VoiceProfile? =
         profiles.firstOrNull { it.id == selectedProfileId }
-
-    private fun useRemote(): Boolean {
-        val state = ReplyCaptureSession.state.value ?: return false
-        if (state.turns.isEmpty()) return false
-        if (coordinatorHasRemote().not()) return false
-        if (!RemoteGenerationPreferences(appContext).enabled) return false
-        return RepliAccountSessionRepository.bearerToken() != null ||
-            RepliFirebaseAccountManager.state.value.signedIn
-    }
-
-    private fun coordinatorHasRemote(): Boolean =
-        BuildConfig.REPLI_BACKEND_URL.takeIf(ServerMediatedReplyEngine::isConfigured) != null
 
     private fun remoteEnabled(): Boolean =
         RemoteGenerationPreferences(appContext).enabled &&
@@ -1055,7 +1141,7 @@ class RepliReplyOrchestrator(
             instructions = session?.instructions,
             approval = approval,
             guidanceOpen = guidanceOpen,
-            guidanceText = if (guidanceOpen) guidanceOverride ?: session?.instructions.orEmpty() else "",
+            guidanceText = if (guidanceOpen) guidanceDraftText else "",
             showChatPicker = current.showChatPicker,
             chatOptions = profiles.map { ChatOption(it.id, it.name, it.style.displayName) },
             selectedProfileName = selectedProfile()?.name,

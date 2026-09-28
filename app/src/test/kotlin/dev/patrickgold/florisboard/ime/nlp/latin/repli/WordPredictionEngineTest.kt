@@ -24,4 +24,16 @@ class WordPredictionEngineTest {
         assertTrue(engine.suggest(TypingContext("hell", "", 4, 4)).any { it.word == "hello" })
         assertTrue(engine.suggest(TypingContext("name@example", "", 12, 12)).isEmpty())
     }
+
+    @Test
+    fun `learned completions survive a snapshot and obey the learning switch`() {
+        val model = AdaptiveLanguageModel().apply {
+            observe(listOf("good"), "replify")
+            observe(listOf("good"), "replify")
+        }
+        engine.installAdaptiveModel(AdaptiveLanguageModel.from(model.snapshot()))
+        assertEquals("replify", engine.suggest(TypingContext("repl", "", 4, 4)).first().word)
+        engine.setAdaptiveEnabled(false)
+        assertTrue(engine.suggest(TypingContext("repl", "", 4, 4)).none { it.word == "replify" })
+    }
 }

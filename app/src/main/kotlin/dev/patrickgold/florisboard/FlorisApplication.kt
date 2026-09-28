@@ -80,7 +80,7 @@ class FlorisApplication : Application() {
     val extensionManager = lazy { ExtensionManager(this) }
     val glideTypingManager = lazy { GlideTypingManager(this) }
     val keyboardManager = lazy { KeyboardManager(this) }
-    val imeController = lazy { ImeController() }
+    val imeController = lazy { ImeController(context = this) }
     val nlpManager = lazy { NlpManager(this) }
     val subtypeManager = lazy { SubtypeManager(this) }
     val themeManager = lazy { ThemeManager(this) }

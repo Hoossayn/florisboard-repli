@@ -63,7 +63,7 @@ configure<ApplicationExtension> {
     }
 
     defaultConfig {
-        applicationId = "dev.patrickgold.florisboard"
+        applicationId = "com.replyai.repli.keyboard"
         minSdk = providers.gradleProperty("projectMinSdk").get().toInt()
         targetSdk = providers.gradleProperty("projectTargetSdk").get().toInt()
         versionCode = providers.gradleProperty("projectVersionCode").get().toInt()

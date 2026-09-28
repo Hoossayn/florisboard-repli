@@ -68,8 +68,8 @@ fun AboutScreen() = FlorisScreen {
         ) {
             FlorisCanvasIcon(
                 modifier = Modifier.requiredSize(64.dp),
-                iconId = R.mipmap.floris_app_icon,
-                contentDescription = "FlorisBoard app icon",
+                iconId = R.drawable.ic_repli_launcher,
+                contentDescription = "Repli Keyboard app icon",
             )
             Text(
                 text = stringRes(R.string.floris_app_name),

@@ -17,72 +17,44 @@
 package dev.patrickgold.florisboard.ime.keyboard
 
 import android.content.Context
-import android.icu.lang.UCharacter
 import android.view.KeyEvent
 import android.widget.Toast
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.setValue
-import androidx.lifecycle.MutableLiveData
 import dev.patrickgold.florisboard.FlorisImeService
-import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.appContext
 import dev.patrickgold.florisboard.clipboardManager
 import dev.patrickgold.florisboard.editorInstance
 import dev.patrickgold.florisboard.extensionManager
-import dev.patrickgold.florisboard.ime.ImeUiMode
-import dev.patrickgold.florisboard.ime.core.DisplayLanguageNamesIn
-import dev.patrickgold.florisboard.ime.core.Subtype
 import dev.patrickgold.florisboard.ime.core.SubtypePreset
 import dev.patrickgold.florisboard.ime.editor.EditorContent
-import dev.patrickgold.florisboard.ime.editor.FlorisEditorInfo
 import dev.patrickgold.florisboard.ime.editor.ImeOptions
-import dev.patrickgold.florisboard.ime.editor.InputAttributes
 import dev.patrickgold.florisboard.ime.editor.OperationUnit
-import dev.patrickgold.florisboard.ime.input.CapitalizationBehavior
 import dev.patrickgold.florisboard.ime.input.InputEventDispatcher
 import dev.patrickgold.florisboard.ime.input.InputKeyEventReceiver
-import dev.patrickgold.florisboard.ime.input.InputShiftState
 import dev.patrickgold.florisboard.ime.nlp.ClipboardSuggestionCandidate
 import dev.patrickgold.florisboard.ime.nlp.PunctuationRule
 import dev.patrickgold.florisboard.ime.nlp.SuggestionCandidate
-import dev.patrickgold.florisboard.ime.nlp.WordSuggestionCandidate
-import dev.patrickgold.florisboard.ime.nlp.latin.TypingPredictionPolicy
-import dev.patrickgold.florisboard.ime.onehanded.OneHandedMode
 import dev.patrickgold.florisboard.ime.popup.PopupMappingComponent
 import dev.patrickgold.florisboard.ime.text.composing.Composer
 import dev.patrickgold.florisboard.ime.text.gestures.SwipeAction
 import dev.patrickgold.florisboard.ime.text.key.KeyCode
-import dev.patrickgold.florisboard.ime.text.key.KeyType
 import dev.patrickgold.florisboard.ime.text.key.UtilityKeyAction
 import dev.patrickgold.florisboard.ime.text.keyboard.TextKeyData
-import dev.patrickgold.florisboard.ime.text.keyboard.TextKeyboardCache
-import dev.patrickgold.florisboard.lib.devtools.LogTopic
-import dev.patrickgold.florisboard.lib.devtools.flogError
 import dev.patrickgold.florisboard.lib.ext.ExtensionComponentName
-import dev.patrickgold.florisboard.lib.titlecase
-import dev.patrickgold.florisboard.lib.uppercase
-import dev.patrickgold.florisboard.lib.util.InputMethodUtils
 import dev.patrickgold.florisboard.nlpManager
 import dev.patrickgold.florisboard.subtypeManager
-import java.lang.ref.WeakReference
-import java.util.concurrent.atomic.AtomicInteger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.sync.Mutex
-import kotlinx.coroutines.sync.withLock
-import org.florisboard.lib.android.AndroidKeyguardManager
-import org.florisboard.lib.android.showLongToast
 import org.florisboard.lib.android.showLongToastSync
-import org.florisboard.lib.android.showShortToastSync
-import org.florisboard.lib.android.systemService
 import org.florisboard.lib.kotlin.collectIn
-import org.florisboard.lib.kotlin.collectLatestIn
+import java.lang.ref.WeakReference
 
 private val DoubleSpacePeriodMatcher = """([^.!?‽\s]\s)""".toRegex()
 
@@ -96,22 +68,10 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
     private val subtypeManager by context.subtypeManager()
 
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    val layoutManager = LayoutManager(context)
-    private val keyboardCache = TextKeyboardCache()
 
     val resources = KeyboardManagerResources()
-    val activeState = ObservableKeyboardState.new()
     var smartbarVisibleDynamicActionsCount by mutableIntStateOf(0)
     private var lastToastReference = WeakReference<Toast>(null)
-
-    private val activeEvaluatorGuard = Mutex(locked = false)
-    private var activeEvaluatorVersion = AtomicInteger(0)
-    private val _activeEvaluator = MutableStateFlow<ComputingEvaluator>(DefaultComputingEvaluator)
-    val activeEvaluator get() = _activeEvaluator.asStateFlow()
-    private val _activeSmartbarEvaluator = MutableStateFlow<ComputingEvaluator>(DefaultComputingEvaluator)
-    val activeSmartbarEvaluator get() = _activeSmartbarEvaluator.asStateFlow()
-    private val _lastCharactersEvaluator = MutableStateFlow<ComputingEvaluator>(DefaultComputingEvaluator)
-    val lastCharactersEvaluator get() = _lastCharactersEvaluator.asStateFlow()
 
     val inputEventDispatcher = InputEventDispatcher.new(
         repeatableKeyCodes = intArrayOf(
@@ -126,112 +86,24 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
         )
     ).also { it.keyEventReceiver = this }
 
-    init {
-        scope.launch(Dispatchers.Main.immediate) {
-            resources.anyChanged.observeForever {
-                updateActiveEvaluators {
-                    keyboardCache.clear()
-                }
-            }
-            prefs.keyboard.numberRow.asFlow().collectLatestIn(scope) {
-                updateActiveEvaluators {
-                    keyboardCache.clear(KeyboardMode.CHARACTERS)
-                }
-            }
-            prefs.keyboard.hintedNumberRowEnabled.asFlow().collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            prefs.keyboard.hintedSymbolsEnabled.asFlow().collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            prefs.keyboard.utilityKeyEnabled.asFlow().collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            prefs.keyboard.utilityKeyAction.asFlow().collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            activeState.collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            subtypeManager.subtypesFlow.collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            subtypeManager.activeSubtypeFlow.collectLatestIn(scope) {
-                reevaluateInputShiftState()
-                updateActiveEvaluators()
-                editorInstance.refreshComposing()
-                resetSuggestions(editorInstance.activeContent)
-            }
-            clipboardManager.primaryClipFlow.collectLatestIn(scope) {
-                updateActiveEvaluators()
-            }
-            editorInstance.activeContentFlow.collectIn(scope) { content ->
-                resetSuggestions(content)
-            }
-            prefs.devtools.enabled.asFlow().collectLatestIn(scope) {
-                reevaluateDebugFlags()
-            }
-            prefs.devtools.showDragAndDropHelpers.asFlow().collectLatestIn(scope) {
-                reevaluateDebugFlags()
-            }
-        }
-    }
-
-    private fun updateActiveEvaluators(action: () -> Unit = { }) = scope.launch {
-        activeEvaluatorGuard.withLock {
-            action()
-            val editorInfo = editorInstance.activeInfo
-            val state = activeState.snapshot()
-            val subtype = subtypeManager.activeSubtype
-            val mode = state.keyboardMode
-            // We need to reset the snapshot input shift state for non-character layouts, because the shift mechanic
-            // only makes sense for the character layouts.
-            if (mode != KeyboardMode.CHARACTERS) {
-                state.inputShiftState = InputShiftState.UNSHIFTED
-            }
-            val computedKeyboard = keyboardCache.getOrElseAsync(mode, subtype) {
-                layoutManager.computeKeyboardAsync(
-                    keyboardMode = mode,
-                    subtype = subtype,
-                ).await()
-            }
-            val computingEvaluator = ComputingEvaluatorImpl(
-                version = activeEvaluatorVersion.getAndAdd(1),
-                keyboard = computedKeyboard,
-                editorInfo = editorInfo,
-                state = state,
-                subtype = subtype,
-            )
-            for (key in computedKeyboard.keys()) {
-                key.compute(computingEvaluator)
-                key.computeLabelsAndDrawables(computingEvaluator)
-            }
-            _activeEvaluator.value = computingEvaluator
-            _activeSmartbarEvaluator.value = computingEvaluator.asSmartbarQuickActionsEvaluator()
-            if (computedKeyboard.mode == KeyboardMode.CHARACTERS) {
-                _lastCharactersEvaluator.value = computingEvaluator
-            }
-        }
-    }
-
     fun reevaluateInputShiftState() {
-        if (activeState.inputShiftState != InputShiftState.CAPS_LOCK && !inputEventDispatcher.isPressed(KeyCode.SHIFT)) {
-            val shift = prefs.correction.autoCapitalization.get()
-                && subtypeManager.activeSubtype.primaryLocale.supportsCapitalization
-                && editorInstance.activeCursorCapsMode != InputAttributes.CapsMode.NONE
-            activeState.inputShiftState = when {
-                shift -> InputShiftState.SHIFTED_AUTOMATIC
-                else -> InputShiftState.UNSHIFTED
-            }
-        }
+//        if (activeState.inputShiftState != InputShiftState.CAPS_LOCK && !inputEventDispatcher.isPressed(KeyCode.SHIFT)) {
+//            val shift = prefs.correction.autoCapitalization.get()
+//                && subtypeManager.activeSubtype.primaryLocale.supportsCapitalization
+//                && editorInstance.activeCursorCapsMode != InputAttributes.CapsMode.NONE
+//            activeState.inputShiftState = when {
+//                shift -> InputShiftState.SHIFTED_AUTOMATIC
+//                else -> InputShiftState.UNSHIFTED
+//            }
+//        }
     }
 
     fun resetSuggestions(content: EditorContent) {
-        if (!(activeState.isComposingEnabled || nlpManager.isSuggestionOn())) {
-            nlpManager.clearSuggestions()
-            return
-        }
-        nlpManager.suggest(subtypeManager.activeSubtype, content)
+//        if (!(activeState.isComposingEnabled || nlpManager.isSuggestionOn())) {
+//            nlpManager.clearSuggestions()
+//            return
+//        }
+//        nlpManager.suggest(subtypeManager.activeSubtype, content)
     }
 
     /**
@@ -241,11 +113,8 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
         return subtypeManager.subtypes.size > 1
     }
 
-    suspend fun toggleOneHandedMode() {
-        prefs.keyboard.oneHandedModeEnabled.set(!prefs.keyboard.oneHandedModeEnabled.get())
-    }
-
     fun executeSwipeAction(swipeAction: SwipeAction) {
+        /*
         val keyData = when (swipeAction) {
             SwipeAction.CYCLE_TO_PREVIOUS_KEYBOARD_MODE -> when (activeState.keyboardMode) {
                 KeyboardMode.CHARACTERS -> TextKeyData.VIEW_NUMERIC_ADVANCED
@@ -281,19 +150,16 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
             SwipeAction.SWITCH_TO_NEXT_SUBTYPE -> TextKeyData.IME_NEXT_SUBTYPE
             SwipeAction.SWITCH_TO_PREV_KEYBOARD -> TextKeyData.SYSTEM_PREV_INPUT_METHOD
             SwipeAction.TOGGLE_SMARTBAR_VISIBILITY -> TextKeyData.TOGGLE_SMARTBAR_VISIBILITY
+            SwipeAction.TOGGLE_COMPACT_LAYOUT -> TextKeyData.TOGGLE_COMPACT_LAYOUT
             else -> null
         }
         if (keyData != null) {
             inputEventDispatcher.sendDownUp(keyData)
         }
+         */
     }
 
     fun commitCandidate(candidate: SuggestionCandidate) {
-        if (candidate is WordSuggestionCandidate && candidate.sourceText != null) {
-            val content = editorInstance.activeContent
-            if (!TypingPredictionPolicy.allows(editorInstance.activeInfo) ||
-                !content.selection.isCursorMode || content.composingText != candidate.sourceText) return
-        }
         scope.launch {
             candidate.sourceProvider?.notifySuggestionAccepted(subtypeManager.activeSubtype, candidate)
         }
@@ -314,6 +180,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
      *    otherwise            , abc -> abc
      */
     fun fixCase(word: String): String {
+        /*
         return when(activeState.inputShiftState) {
             InputShiftState.CAPS_LOCK -> {
                 word.uppercase(subtypeManager.activeSubtype.primaryLocale)
@@ -323,12 +190,15 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
             }
             else -> word
         }
+         */
+        return word
     }
 
     /**
      * Handles [KeyCode] arrow and move events, behaves differently depending on text selection.
      */
-    fun handleArrow(code: Int, count: Int = 1) = editorInstance.apply {
+    fun handleArrow(code: Int, count: Int = 1) {} /*= editorInstance.apply {
+
         val isShiftPressed = activeState.isManualSelectionMode || inputEventDispatcher.isPressed(KeyCode.SHIFT)
         val content = activeContent
         val selection = content.selection
@@ -390,12 +260,13 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                 sendDownUpKeyEvent(KeyEvent.KEYCODE_DPAD_RIGHT, meta(alt = true, shift = isShiftPressed), count)
             }
         }
-    }
+    }*/
 
     /**
      * Handles a [KeyCode.CLIPBOARD_SELECT] event.
      */
     private fun handleClipboardSelect() {
+        /*
         val activeSelection = editorInstance.activeContent.selection
         activeState.isManualSelectionMode = if (activeSelection.isSelectionMode) {
             if (activeState.isManualSelectionMode && activeState.isManualSelectionModeStart) {
@@ -407,6 +278,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
         } else {
             !activeState.isManualSelectionMode
         }
+         */
     }
 
     private fun revertPreviouslyAcceptedCandidate() {
@@ -426,6 +298,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
      * Handles a [KeyCode.DELETE] event.
      */
     private fun handleBackwardDelete(unit: OperationUnit) {
+        /*
         if (inputEventDispatcher.isPressed(KeyCode.SHIFT)) {
             return handleForwardDelete(unit)
         }
@@ -436,19 +309,20 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
         }
         revertPreviouslyAcceptedCandidate()
         editorInstance.deleteBackwards(unit)
+         */
     }
 
     /**
      * Handles a [KeyCode.FORWARD_DELETE] event.
      */
     private fun handleForwardDelete(unit: OperationUnit) {
-        activeState.batchEdit {
-            it.isManualSelectionMode = false
-            it.isManualSelectionModeStart = false
-            it.isManualSelectionModeEnd = false
-        }
-        revertPreviouslyAcceptedCandidate()
-        editorInstance.deleteForwards(unit)
+//        activeState.batchEdit {
+//            it.isManualSelectionMode = false
+//            it.isManualSelectionModeStart = false
+//            it.isManualSelectionModeEnd = false
+//        }
+//        revertPreviouslyAcceptedCandidate()
+//        editorInstance.deleteForwards(unit)
     }
 
     /**
@@ -493,6 +367,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
      * Handles a [KeyCode.SHIFT] down event.
      */
     private fun handleShiftDown(data: KeyData) {
+        /*
         val prefs = prefs.keyboard.capitalizationBehavior
         when (prefs.get()) {
             CapitalizationBehavior.CAPSLOCK_BY_DOUBLE_TAP -> {
@@ -515,30 +390,31 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                 }
             }
         }
+         */
     }
 
     /**
      * Handles a [KeyCode.SHIFT] up event.
      */
     private fun handleShiftUp(data: KeyData) {
-        if (activeState.inputShiftState != InputShiftState.CAPS_LOCK && !inputEventDispatcher.isAnyPressed() &&
-            !inputEventDispatcher.isUninterruptedEventSequence(data)) {
-            activeState.inputShiftState = InputShiftState.UNSHIFTED
-        }
+//        if (activeState.inputShiftState != InputShiftState.CAPS_LOCK && !inputEventDispatcher.isAnyPressed() &&
+//            !inputEventDispatcher.isUninterruptedEventSequence(data)) {
+//            activeState.inputShiftState = InputShiftState.UNSHIFTED
+//        }
     }
 
     /**
      * Handles a [KeyCode.CAPS_LOCK] event.
      */
     private fun handleCapsLock() {
-        activeState.inputShiftState = InputShiftState.CAPS_LOCK
+        //activeState.inputShiftState = InputShiftState.CAPS_LOCK
     }
 
     /**
      * Handles a [KeyCode.SHIFT] cancel event.
      */
     private fun handleShiftCancel() {
-        activeState.inputShiftState = InputShiftState.UNSHIFTED
+        //activeState.inputShiftState = InputShiftState.UNSHIFTED
     }
 
     /**
@@ -561,6 +437,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
      * enabled by the user.
      */
     private fun handleSpace(data: KeyData) {
+        /*
         val candidate = nlpManager.getAutoCommitCandidate()
         candidate?.let { commitCandidate(it) }
         if (prefs.keyboard.spaceBarSwitchesToCharacters.get()) {
@@ -588,12 +465,14 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                 candidate != null) { /* Do nothing */ } else {
             editorInstance.commitText(KeyCode.SPACE.toChar().toString())
         }
+         */
     }
 
     /**
      * Handles a [KeyCode.TOGGLE_INCOGNITO_MODE] event.
      */
     private suspend fun handleToggleIncognitoMode() {
+        /*
         prefs.suggestion.forceIncognitoModeFromDynamic.set(!prefs.suggestion.forceIncognitoModeFromDynamic.get())
         val newState = !activeState.isIncognitoMode
         activeState.isIncognitoMode = newState
@@ -611,6 +490,8 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                 )
             }
         )
+
+         */
     }
 
     /**
@@ -627,64 +508,66 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
      * Handles a [KeyCode.KANA_SWITCHER] event
      */
     private fun handleKanaSwitch() {
-        activeState.batchEdit {
-            it.isKanaKata = !it.isKanaKata
-            it.isCharHalfWidth = false
-        }
+//        activeState.batchEdit {
+//            it.isKanaKata = !it.isKanaKata
+//            it.isCharHalfWidth = false
+//        }
     }
 
     /**
      * Handles a [KeyCode.KANA_HIRA] event
      */
     private fun handleKanaHira() {
-        activeState.batchEdit {
-            it.isKanaKata = false
-            it.isCharHalfWidth = false
-        }
+//        activeState.batchEdit {
+//            it.isKanaKata = false
+//            it.isCharHalfWidth = false
+//        }
     }
 
     /**
      * Handles a [KeyCode.KANA_KATA] event
      */
     private fun handleKanaKata() {
-        activeState.batchEdit {
-            it.isKanaKata = true
-            it.isCharHalfWidth = false
-        }
+//        activeState.batchEdit {
+//            it.isKanaKata = true
+//            it.isCharHalfWidth = false
+//        }
     }
 
     /**
      * Handles a [KeyCode.KANA_HALF_KATA] event
      */
     private fun handleKanaHalfKata() {
-        activeState.batchEdit {
-            it.isKanaKata = true
-            it.isCharHalfWidth = true
-        }
+//        activeState.batchEdit {
+//            it.isKanaKata = true
+//            it.isCharHalfWidth = true
+//        }
     }
 
     /**
      * Handles a [KeyCode.CHAR_WIDTH_SWITCHER] event
      */
     private fun handleCharWidthSwitch() {
-        activeState.isCharHalfWidth = !activeState.isCharHalfWidth
+        //activeState.isCharHalfWidth = !activeState.isCharHalfWidth
     }
 
     /**
      * Handles a [KeyCode.CHAR_WIDTH_SWITCHER] event
      */
     private fun handleCharWidthFull() {
-        activeState.isCharHalfWidth = false
+        //activeState.isCharHalfWidth = false
     }
 
     /**
      * Handles a [KeyCode.CHAR_WIDTH_SWITCHER] event
      */
     private fun handleCharWidthHalf() {
-        activeState.isCharHalfWidth = true
+        //activeState.isCharHalfWidth = true
     }
 
     override fun onInputKeyDown(data: KeyData) {
+        val windowController = FlorisImeService.windowControllerOrNull()
+        windowController?.editor?.disableIfNoGestureInProgress()
         when (data.code) {
             KeyCode.ARROW_DOWN,
             KeyCode.ARROW_LEFT,
@@ -700,7 +583,8 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
         }
     }
 
-    override fun onInputKeyUp(data: KeyData) = activeState.batchEdit {
+    override fun onInputKeyUp(data: KeyData) {} /*= activeState.batchEdit {
+        val windowController = FlorisImeService.windowControllerOrNull() ?: return@batchEdit
         when (data.code) {
             KeyCode.ARROW_DOWN,
             KeyCode.ARROW_LEFT,
@@ -731,15 +615,11 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                 clipboardManager.updatePrimaryClip(null)
                 appContext.showShortToastSync(R.string.clipboard__cleared_primary_clip)
             }
-            KeyCode.TOGGLE_COMPACT_LAYOUT -> scope.launch { toggleOneHandedMode() }
-            KeyCode.COMPACT_LAYOUT_TO_LEFT -> scope.launch {
-                prefs.keyboard.oneHandedMode.set(OneHandedMode.START)
-                toggleOneHandedMode()
-            }
-            KeyCode.COMPACT_LAYOUT_TO_RIGHT -> scope.launch {
-                prefs.keyboard.oneHandedMode.set(OneHandedMode.END)
-                toggleOneHandedMode()
-            }
+            KeyCode.TOGGLE_FLOATING_WINDOW -> windowController.actions.toggleFloatingWindow()
+            KeyCode.TOGGLE_COMPACT_LAYOUT -> windowController.actions.toggleCompactLayout()
+            KeyCode.COMPACT_LAYOUT_TO_LEFT -> windowController.actions.compactLayoutToLeft()
+            KeyCode.COMPACT_LAYOUT_TO_RIGHT -> windowController.actions.compactLayoutToRight()
+            KeyCode.TOGGLE_RESIZE_MODE -> windowController.editor.toggleEnabled()
             KeyCode.DELETE -> handleBackwardDelete(OperationUnit.CHARACTERS)
             KeyCode.DELETE_WORD -> handleBackwardDelete(OperationUnit.WORDS)
             KeyCode.ENTER -> handleEnter()
@@ -829,7 +709,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                 }
             }
         }
-    }
+    }*/
 
     override fun onInputKeyCancel(data: KeyData) {
         when (data.code) {
@@ -848,7 +728,7 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
     }
 
     override fun onInputKeyRepeat(data: KeyData) {
-        FlorisImeService.inputFeedbackController()?.keyRepeatedAction(data)
+        //FlorisImeService.inputFeedbackController()?.keyRepeatedAction(data)
         when (data.code) {
             KeyCode.ARROW_DOWN,
             KeyCode.ARROW_LEFT,
@@ -859,13 +739,6 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
             KeyCode.MOVE_START_OF_LINE,
             KeyCode.MOVE_END_OF_LINE -> handleArrow(data.code)
             else -> onInputKeyUp(data)
-        }
-    }
-
-    private fun reevaluateDebugFlags() {
-        val devtoolsEnabled = prefs.devtools.enabled.get()
-        activeState.batchEdit {
-            activeState.debugShowDragAndDropHelpers = devtoolsEnabled && prefs.devtools.showDragAndDropHelpers.get()
         }
     }
 
@@ -898,25 +771,18 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
     }
 
     inner class KeyboardManagerResources {
-        val composers = MutableLiveData<Map<ExtensionComponentName, Composer>>(emptyMap())
-        val currencySets = MutableLiveData<Map<ExtensionComponentName, CurrencySet>>(emptyMap())
-        val layouts = MutableLiveData<Map<LayoutType, Map<ExtensionComponentName, LayoutArrangementComponent>>>(emptyMap())
-        val popupMappings = MutableLiveData<Map<ExtensionComponentName, PopupMappingComponent>>(emptyMap())
-        val punctuationRules = MutableLiveData<Map<ExtensionComponentName, PunctuationRule>>(emptyMap())
-        val subtypePresets = MutableLiveData<List<SubtypePreset>>(emptyList())
+        val composers = MutableStateFlow<Map<ExtensionComponentName, Composer>>(emptyMap())
+        val currencySets = MutableStateFlow<Map<ExtensionComponentName, CurrencySet>>(emptyMap())
+        val layouts = MutableStateFlow<Map<LayoutType, Map<ExtensionComponentName, LayoutArrangementComponent>>>(emptyMap())
+        val popupMappings = MutableStateFlow<Map<ExtensionComponentName, PopupMappingComponent>>(emptyMap())
+        val punctuationRules = MutableStateFlow<Map<ExtensionComponentName, PunctuationRule>>(emptyMap())
+        val subtypePresets = MutableStateFlow<List<SubtypePreset>>(emptyList())
 
-        private val anyChangedGuard = Mutex(locked = false)
-        val anyChanged = MutableLiveData(Unit)
+        val anyChangedVersion = MutableStateFlow(0)
 
         init {
-            scope.launch(Dispatchers.Main.immediate) {
-                extensionManager.keyboardExtensions.observeForever { keyboardExtensions ->
-                    scope.launch {
-                        anyChangedGuard.withLock {
-                            parseKeyboardExtensions(keyboardExtensions)
-                        }
-                    }
-                }
+            extensionManager.keyboardExtensions.collectIn(scope) { keyboardExtensions ->
+                parseKeyboardExtensions(keyboardExtensions)
             }
         }
 
@@ -957,108 +823,13 @@ class KeyboardManager(context: Context) : InputKeyEventReceiver {
                     localSubtypePresets.add(0, localSubtypePresets.removeAt(index))
                 }
             }
-            subtypePresets.postValue(localSubtypePresets)
-            composers.postValue(localComposers)
-            currencySets.postValue(localCurrencySets)
-            layouts.postValue(localLayouts)
-            popupMappings.postValue(localPopupMappings)
-            punctuationRules.postValue(localPunctuationRules)
-            anyChanged.postValue(Unit)
-        }
-    }
-
-    private inner class ComputingEvaluatorImpl(
-        override val version: Int,
-        override val keyboard: Keyboard,
-        override val editorInfo: FlorisEditorInfo,
-        override val state: KeyboardState,
-        override val subtype: Subtype,
-    ) : ComputingEvaluator {
-
-        override fun context(): Context = appContext
-
-        val androidKeyguardManager = context().systemService(AndroidKeyguardManager::class)
-
-        override fun displayLanguageNamesIn(): DisplayLanguageNamesIn {
-            return prefs.localization.displayLanguageNamesIn.get()
-        }
-
-        override fun evaluateEnabled(data: KeyData): Boolean {
-            return when (data.code) {
-                KeyCode.CLIPBOARD_COPY,
-                KeyCode.CLIPBOARD_CUT -> {
-                    state.isSelectionMode && editorInfo.isRichInputEditor
-                }
-                KeyCode.CLIPBOARD_PASTE -> {
-                    !androidKeyguardManager.let { it.isDeviceLocked || it.isKeyguardLocked }
-                        && clipboardManager.canBePasted(clipboardManager.primaryClip)
-                }
-                KeyCode.CLIPBOARD_CLEAR_PRIMARY_CLIP -> {
-                    clipboardManager.canBePasted(clipboardManager.primaryClip)
-                }
-                KeyCode.CLIPBOARD_SELECT_ALL -> {
-                    editorInfo.isRichInputEditor
-                }
-                KeyCode.TOGGLE_INCOGNITO_MODE -> when (prefs.suggestion.incognitoMode.get()) {
-                    IncognitoMode.FORCE_OFF, IncognitoMode.FORCE_ON -> false
-                    IncognitoMode.DYNAMIC_ON_OFF -> !editorInfo.imeOptions.flagNoPersonalizedLearning
-                }
-                KeyCode.LANGUAGE_SWITCH -> {
-                    subtypeManager.subtypes.size > 1
-                }
-                else -> true
-            }
-        }
-
-        override fun evaluateVisible(data: KeyData): Boolean {
-            return when (data.code) {
-                KeyCode.IME_UI_MODE_TEXT,
-                KeyCode.IME_UI_MODE_MEDIA -> {
-                    val tempUtilityKeyAction = when {
-                        prefs.keyboard.utilityKeyEnabled.get() -> prefs.keyboard.utilityKeyAction.get()
-                        else -> UtilityKeyAction.DISABLED
-                    }
-                    when (tempUtilityKeyAction) {
-                        UtilityKeyAction.DISABLED,
-                        UtilityKeyAction.SWITCH_LANGUAGE,
-                        UtilityKeyAction.SWITCH_KEYBOARD_APP -> false
-                        UtilityKeyAction.SWITCH_TO_EMOJIS -> true
-                        UtilityKeyAction.DYNAMIC_SWITCH_LANGUAGE_EMOJIS -> !shouldShowLanguageSwitch()
-                    }
-                }
-                KeyCode.LANGUAGE_SWITCH -> {
-                    val tempUtilityKeyAction = when {
-                        prefs.keyboard.utilityKeyEnabled.get() -> prefs.keyboard.utilityKeyAction.get()
-                        else -> UtilityKeyAction.DISABLED
-                    }
-                    when (tempUtilityKeyAction) {
-                        UtilityKeyAction.DISABLED,
-                        UtilityKeyAction.SWITCH_TO_EMOJIS -> false
-                        UtilityKeyAction.SWITCH_LANGUAGE,
-                        UtilityKeyAction.SWITCH_KEYBOARD_APP -> true
-                        UtilityKeyAction.DYNAMIC_SWITCH_LANGUAGE_EMOJIS -> shouldShowLanguageSwitch()
-                    }
-                }
-                else -> true
-            }
-        }
-
-        override fun isSlot(data: KeyData): Boolean {
-            return CurrencySet.isCurrencySlot(data.code)
-        }
-
-        override fun slotData(data: KeyData): KeyData? {
-            return subtypeManager.getCurrencySet(subtype).getSlot(data.code)
-        }
-
-        fun asSmartbarQuickActionsEvaluator(): ComputingEvaluatorImpl {
-            return ComputingEvaluatorImpl(
-                version = version,
-                keyboard = SmartbarQuickActionsKeyboard,
-                editorInfo = editorInfo,
-                state = state,
-                subtype = Subtype.DEFAULT,
-            )
+            subtypePresets.value = localSubtypePresets
+            composers.value = localComposers
+            currencySets.value = localCurrencySets
+            layouts.value = localLayouts
+            popupMappings.value = localPopupMappings
+            punctuationRules.value = localPunctuationRules
+            anyChangedVersion.update { it + 1 }
         }
     }
 }

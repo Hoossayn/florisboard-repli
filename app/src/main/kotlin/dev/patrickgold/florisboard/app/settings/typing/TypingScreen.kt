@@ -24,16 +24,21 @@ import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Language
 import androidx.compose.material.icons.filled.SpaceBar
 import androidx.compose.material3.Card
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.res.vectorResource
 import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.R
+import dev.patrickgold.florisboard.imeController
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.app.enumDisplayEntriesOf
@@ -57,8 +62,46 @@ fun TypingScreen() = FlorisScreen {
     previewFieldVisible = true
 
     val navController = LocalNavController.current
+    val context = LocalContext.current
+    val imeController by context.imeController()
+    val assistant = imeController.repliAssistant
+    var learningEnabled by remember(assistant) { mutableStateOf(assistant?.isLearningEnabled() ?: true) }
+    var confirmClear by remember { mutableStateOf(false) }
+
+    if (confirmClear) {
+        AlertDialog(
+            onDismissRequest = { confirmClear = false },
+            title = { Text(stringRes(R.string.repli_learning_clear)) },
+            text = { Text(stringRes(R.string.repli_learning_clear_confirm)) },
+            confirmButton = {
+                TextButton(onClick = {
+                    assistant?.clearLearning()
+                    confirmClear = false
+                }) { Text(stringRes(R.string.repli_learning_clear_action)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { confirmClear = false }) { Text(stringRes(R.string.action__cancel)) }
+            },
+        )
+    }
 
     content {
+        PreferenceGroup(title = stringRes(R.string.repli_learning_title)) {
+            Preference(
+                title = stringRes(R.string.repli_learning_enabled),
+                summary = stringRes(if (learningEnabled) R.string.repli_learning_on else R.string.repli_learning_off),
+                onClick = {
+                    learningEnabled = !learningEnabled
+                    assistant?.setLearningEnabled(learningEnabled)
+                },
+            )
+            Preference(
+                title = stringRes(R.string.repli_learning_clear),
+                summary = stringRes(R.string.repli_learning_clear_summary),
+                onClick = { confirmClear = true },
+            )
+        }
+
         PreferenceGroup(title = stringRes(R.string.pref__suggestion__title)) {
             SwitchPreference(
                 prefs.suggestion.enabled,

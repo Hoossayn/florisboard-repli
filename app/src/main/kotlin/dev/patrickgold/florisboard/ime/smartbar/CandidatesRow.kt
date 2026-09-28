@@ -42,6 +42,8 @@ import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.ime.nlp.ClipboardSuggestionCandidate
 import dev.patrickgold.florisboard.ime.nlp.SuggestionCandidate
+import dev.patrickgold.florisboard.ime.nlp.WordSuggestionCandidate
+import dev.patrickgold.florisboard.ime.keyboard3.LocalImeController
 import dev.patrickgold.florisboard.ime.theme.FlorisImeUi
 import dev.patrickgold.florisboard.nlpManager
 import dev.patrickgold.florisboard.subtypeManager
@@ -63,26 +65,31 @@ fun CandidatesRow(modifier: Modifier = Modifier) {
     val prefs by FlorisPreferenceStore
     val context = LocalContext.current
     val nlpManager by context.nlpManager()
+    val imeController = LocalImeController.current
     val subtypeManager by context.subtypeManager()
 
     val displayMode by prefs.suggestion.displayMode.collectAsState()
     val candidates by nlpManager.activeCandidatesFlow.collectAsState()
+    val repliPredictions by imeController.repliSuggestions.collectAsState()
+    val visibleCandidates = if (repliPredictions.isNotEmpty()) {
+        repliPredictions.map { WordSuggestionCandidate(text = it.word, isEligibleForUserRemoval = false) }
+    } else candidates
 
     SnyggRow(
         elementName = FlorisImeUi.SmartbarCandidatesRow.elementName,
         modifier = modifier
             .fillMaxSize()
-            .conditional(displayMode == CandidatesDisplayMode.DYNAMIC_SCROLLABLE && candidates.size > 1) {
+            .conditional(displayMode == CandidatesDisplayMode.DYNAMIC_SCROLLABLE && visibleCandidates.size > 1) {
                 florisHorizontalScroll(scrollbarHeight = CandidatesRowScrollbarHeight)
             },
-        horizontalArrangement = if (candidates.size > 1) {
+        horizontalArrangement = if (visibleCandidates.size > 1) {
             Arrangement.Start
         } else {
             Arrangement.Center
         },
     ) {
-        if (candidates.isNotEmpty()) {
-            val candidateModifier = if (candidates.size == 1) {
+        if (visibleCandidates.isNotEmpty()) {
+            val candidateModifier = if (visibleCandidates.size == 1) {
                 Modifier
                     .fillMaxHeight()
                     .weight(1f, fill = false)
@@ -97,8 +104,8 @@ fun CandidatesRow(modifier: Modifier = Modifier) {
                     }
             }
             val list = when (displayMode) {
-                CandidatesDisplayMode.CLASSIC -> candidates.subList(0, 3.coerceAtMost(candidates.size))
-                else -> candidates
+                CandidatesDisplayMode.CLASSIC -> visibleCandidates.subList(0, 3.coerceAtMost(visibleCandidates.size))
+                else -> visibleCandidates
             }
             for ((n, candidate) in list.withIndex()) {
                 if (n > 0) {
@@ -115,12 +122,11 @@ fun CandidatesRow(modifier: Modifier = Modifier) {
                     candidate = candidate,
                     displayMode = displayMode,
                     onClick = {
-                        // Can't use candidate directly
-                        // TODO keyboardManager.commitCandidate(candidates[n])
+                        repliPredictions.getOrNull(n)?.let(imeController::commitRepliSuggestion)
                     },
                     onLongPress = {
                         // Can't use candidate directly
-                        val candidateItem = candidates[n]
+                        val candidateItem = visibleCandidates[n]
                         if (candidateItem.isEligibleForUserRemoval) {
                             nlpManager.removeSuggestion(subtypeManager.activeSubtype, candidateItem)
                         } else {

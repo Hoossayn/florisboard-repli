@@ -123,7 +123,7 @@ class FlorisAppActivity : ComponentActivity() {
             setContent {
                 ProvideLocalizedResources(
                     resourcesContext,
-                    appName = R.string.app_name,
+                    appName = R.string.floris_app_name,
                 ) {
                     FlorisAppTheme(theme = appTheme) {
                         Surface(color = MaterialTheme.colorScheme.background) {

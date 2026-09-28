@@ -53,6 +53,7 @@ import dev.patrickgold.florisboard.app.settings.HomeScreen
 import dev.patrickgold.florisboard.app.settings.about.AboutScreen
 import dev.patrickgold.florisboard.app.settings.account.RepliAccountScreen
 import dev.patrickgold.florisboard.app.settings.repli.RepliChatsScreen
+import dev.patrickgold.florisboard.app.settings.repli.RepliHomeScreen
 import dev.patrickgold.florisboard.app.settings.repli.RepliRepliesScreen
 import dev.patrickgold.florisboard.app.settings.about.ProjectLicenseScreen
 import dev.patrickgold.florisboard.app.settings.about.ThirdPartyLicensesScreen
@@ -204,6 +205,10 @@ object Routes {
         object RepliChats
 
         @Serializable
+        @Deeplink("settings/repli-home")
+        object RepliHome
+
+        @Serializable
         @Deeplink("settings/repli-replies")
         object RepliReplies
 
@@ -337,6 +342,7 @@ object Routes {
             composableWithDeepLink(Settings.About::class) { AboutScreen() }
             composableWithDeepLink(Settings.Account::class) { RepliAccountScreen() }
             composableWithDeepLink(Settings.RepliChats::class) { RepliChatsScreen() }
+            composableWithDeepLink(Settings.RepliHome::class) { RepliHomeScreen() }
             composableWithDeepLink(Settings.RepliReplies::class) { RepliRepliesScreen() }
             composableWithDeepLink(Settings.ProjectLicense::class) { ProjectLicenseScreen() }
             composableWithDeepLink(Settings.ThirdPartyLicenses::class) { ThirdPartyLicensesScreen() }

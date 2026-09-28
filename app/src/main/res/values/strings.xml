@@ -65,6 +65,26 @@
     <string name="repli_panel__approval_summary" comment="{count} turns, {style} tone preset, {examples} writing examples">Exact payload: {count} messages · {style} tone · {examples} examples. Shown in full before anything is sent.</string>
     <string name="repli_panel__generate">Generate replies</string>
     <string name="repli_panel__use_on_device">Use on-device instead</string>
+    <string name="repli_nav__home">Home</string>
+    <string name="repli_nav__chats">Chats</string>
+    <string name="repli_nav__settings">Settings</string>
+    <string name="repli_home__brand">repli</string>
+    <string name="repli_home__tagline">Your words. Your call.</string>
+    <string name="repli_home__eyebrow">A LITTLE HELP WITH THE NEXT REPLY</string>
+    <string name="repli_home__headline">Good replies.\nLess overthinking.</string>
+    <string name="repli_home__sub">Three ideas to make your own. Choose one, edit it, and send when you\'re ready.</string>
+    <string name="repli_home__practice">Try a practice chat</string>
+    <string name="repli_home__practice_caption">Sample conversation · nothing is sent automatically</string>
+    <string name="repli_home__setup_title">Your keyboard, with a little extra</string>
+    <string name="repli_home__enable_keyboard">Open keyboard settings</string>
+    <string name="repli_home__choose_keyboard">Choose Repli keyboard</string>
+    <string name="repli_home__ready">Repli Keyboard is enabled and selected. You\'re ready to type.</string>
+    <string name="repli_home__flow_title">From chat to reply</string>
+    <string name="repli_home__flow_body">Suggest replies from the keyboard in any chat. Confirm a sender or capture the visible view — review the context, then insert. Nothing is ever sent automatically.</string>
+    <string name="repli_home__flow_action">Reply options</string>
+    <string name="repli_home__tone_title">A different tone for every chat</string>
+    <string name="repli_home__tone_body">Save a chat from the keyboard, or give it a name and a tone here. No history import needed.</string>
+    <string name="repli_home__tone_action">Manage your chats</string>
 
     <string name="key_popup__threedots_alt" comment="Content description for the three-dots icon in a key popup">Three-dot icon. If visible, indicates that more letters can be used if longer pressed.</string>
 

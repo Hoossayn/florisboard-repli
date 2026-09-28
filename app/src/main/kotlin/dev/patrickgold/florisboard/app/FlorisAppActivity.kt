@@ -45,6 +45,7 @@ import androidx.navigation.compose.rememberNavController
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.apptheme.FlorisAppTheme
 import dev.patrickgold.florisboard.app.ext.ExtensionImportScreenType
+import dev.patrickgold.florisboard.app.settings.repli.RepliBottomNav
 import dev.patrickgold.florisboard.app.setup.NotificationPermissionState
 import dev.patrickgold.florisboard.appContext
 import dev.patrickgold.florisboard.cacheManager
@@ -197,9 +198,10 @@ class FlorisAppActivity : ComponentActivity() {
                     Routes.AppNavHost(
                         modifier = Modifier.weight(1.0f),
                         navController = navController,
-                        startDestination = if (isImeSetUp) Routes.Settings.Home::class else Routes.Setup.Screen::class,
+                        startDestination = if (isImeSetUp) Routes.Settings.RepliHome::class else Routes.Setup.Screen::class,
                     )
                     PreviewKeyboardField(previewFieldController)
+                    RepliBottomNav(navController)
                 }
             }
         }

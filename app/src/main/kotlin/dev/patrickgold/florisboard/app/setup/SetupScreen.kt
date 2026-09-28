@@ -241,7 +241,7 @@ private fun PreferenceUiScope<FlorisPreferenceModel>.steps(
             StepText(stringRes(R.string.setup__finish_up__description_p2))
             StepButton(label = stringRes(R.string.setup__finish_up__finish_btn)) {
                 scope.launch { this@steps.prefs.internal.isImeSetUp.set(true) }
-                navController.navigate(Routes.Settings.Home) {
+                navController.navigate(Routes.Settings.RepliHome) {
                     popUpTo(Routes.Setup.Screen) {
                         inclusive = true
                     }

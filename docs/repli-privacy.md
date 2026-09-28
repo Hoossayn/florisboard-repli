@@ -4,6 +4,12 @@ Repli Keyboard's English suggestion and autocorrect engine runs on the device. I
 
 The learned model is bounded and saved in encrypted storage using Android Keystore. Its file is placed in Android's no-backup directory. You can turn learning off or delete learned words in **Settings → Typing → Adaptive learning**. Turning learning off stops using and updating that model; deleting clears the saved model.
 
+The keyboard theme uses Repli's warm ivory surfaces, indigo accent (`#6654D1`), and lilac highlights so the app and keyboard stay consistent.
+
+Optional Repli account and cloud replies are off unless you sign in under **Settings → Repli account** and the build is configured with a backend. The app holds `INTERNET` permission only for this path: Firebase exchanges your email/password sign-in for a short-lived Repli session, and captured chat text is sent to your configured first-party HTTPS backend only after you review and approve the exact payload per request. Typing, suggestions, adaptive learning, and style data are never uploaded. Sign-out clears the in-memory session; account deletion reauthenticates, asks the backend to remove per-user records, then clears local data. Without backend/Firebase configuration the account screen reports unavailable and all typing stays on-device.
+
+Chat profiles (names and tones) live in app SharedPreferences; recent notification senders, learned writing styles, and pending captures use Keystore-encrypted storage. Screen frames are memory-only and erased after review/generation, Clear, or leaving the chat. The notification listener reads posted notifications from major chat apps but only WhatsApp/Telegram one-to-one conversations feed reply context. The guided-capture overlay observes only the foreground package and never inspects content, gestures, types, or sends. Voice guidance uses the on-device recognizer; audio is never stored or uploaded. Manage chats under **Settings → Repli chats** and context options under **Settings → Repli replies**.
+
 The keyboard inherits other FlorisBoard features, such as clipboard history and extension management. Those features have their own settings and storage behavior. The Repli suggestion and adaptive learning code does not send typed text to a server.
 
 Source code and issue reports: [Hoossayn/florisboard-repli](https://github.com/Hoossayn/florisboard-repli). Repli Keyboard is based on FlorisBoard; upstream information is at [florisboard.org](https://florisboard.org/).

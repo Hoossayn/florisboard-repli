@@ -1,9 +1,24 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <!-- Repli palette (single source of truth: assisted texting Palette.kt) -->
     <color name="colorPrimary">#6654D1</color>
     <color name="colorPrimaryDark">#4B3BB0</color>
     <color name="colorAccent">#6654D1</color>
     <color name="colorAccentDark">#4B3BB0</color>
+
+    <color name="repli_ink">#27243A</color>
+    <color name="repli_muted">#6E6A80</color>
+    <color name="repli_paper">#FAF8F5</color>
+    <color name="repli_accent_soft">#EEEAFE</color>
+    <color name="repli_accent">#6654D1</color>
+    <color name="repli_accent_pressed">#4C3BA8</color>
+    <color name="repli_keyboard_surface">#F0EDF7</color>
+    <color name="repli_key_surface">#FFFFFF</color>
+    <color name="repli_key_pressed">#DFD8F6</color>
+    <color name="repli_key_special">#E6E0F3</color>
+    <color name="repli_suggestion_surface">#FAF9FF</color>
+    <color name="repli_line_soft">#E7E2EE</color>
+    <color name="repli_line_strong">#D7CEE5</color>
 
     <color name="colorSuccess">#4CAF50</color>
     <color name="textColorSuccess">#FFFFFF</color><!-- White -->
@@ -16,8 +31,8 @@
 
     <color name="cardViewBackgroundColor">#FFFFFF</color><!-- White -->
     <color name="navigationBarColor">#000000</color><!-- Black -->
-    <color name="toolbarForegroundColor">#000000</color><!-- Black -->
-    <color name="windowBackground">#FAFAFA</color><!-- Gray 50 -->
+    <color name="toolbarForegroundColor">#27243A</color><!-- Repli ink -->
+    <color name="windowBackground">#FAF8F5</color><!-- Repli paper -->
 
-    <color name="florisApp_windowBackground">#FFFFFFFF</color>
+    <color name="florisApp_windowBackground">#FAF8F5</color>
 </resources>

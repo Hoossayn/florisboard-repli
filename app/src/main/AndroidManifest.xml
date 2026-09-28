@@ -8,11 +8,25 @@
     <!-- Permission needed to create notifications on devices running Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 
+    <!-- Repli account/cloud replies only: network is used solely to exchange the
+         Firebase ID token for a short-lived Repli session and to send
+         user-approved captured text to the configured first-party backend.
+         Typing, suggestions, and adaptive learning stay on-device. -->
+    <uses-permission android:name="android.permission.INTERNET"/>
+
+    <!-- Repli capture/voice: foreground media-projection capture and on-device mic guidance -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PROJECTION" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
+
     <!-- Android 11+ only: Define that FlorisBoard requests to see all apps that
           ship with an IME or Spell Check service. This is used to guide the user
           in the Settings Ui why FlorisBoard may not be working.
      -->
     <queries>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
+        </intent>
         <intent>
             <action android:name="android.view.InputMethod"/>
         </intent>
@@ -129,6 +143,60 @@
                 <data android:mimeType="image/*"/>
             </intent-filter>
         </activity>
+
+        <!-- Repli capture consent + mic permission (explicit per-use disclosures) -->
+        <activity
+            android:name="dev.patrickgold.florisboard.repli.capture.ReplyCaptureConsentActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/FlorisAppTheme.Transparent" />
+        <activity
+            android:name="dev.patrickgold.florisboard.repli.voice.MicrophonePermissionActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:taskAffinity=""
+            android:theme="@style/FlorisAppTheme.Transparent"
+            android:windowSoftInputMode="stateAlwaysHidden" />
+
+        <!-- Repli MediaProjection capture (user-approved per capture, memory-only frames) -->
+        <service
+            android:name="dev.patrickgold.florisboard.repli.capture.ReplyScreenCaptureService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+        <service
+            android:name="dev.patrickgold.florisboard.repli.capture.LearnByScrollingService"
+            android:exported="false"
+            android:foregroundServiceType="mediaProjection" />
+
+        <!-- Repli guided-capture overlay (foreground-only, no gestures, no typing) -->
+        <service
+            android:name="dev.patrickgold.florisboard.repli.capture.ReplyAutoScrollAccessibilityService"
+            android:description="@string/auto_scroll_accessibility_description"
+            android:exported="true"
+            android:label="Repli guided context capture"
+            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+            <intent-filter>
+                <action android:name="android.accessibilityservice.AccessibilityService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.accessibilityservice"
+                android:resource="@xml/reply_auto_scroll_accessibility" />
+        </service>
+
+        <!-- Repli opt-in notification context (WhatsApp/Telegram one-to-one only) -->
+        <service
+            android:name="dev.patrickgold.florisboard.repli.notifications.RecentMessageNotificationService"
+            android:exported="false"
+            android:label="@string/notification_service_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+            <meta-data
+                android:name="android.service.notification.default_filter_types"
+                android:value="conversations|alerting" />
+        </service>
 
         <!-- Clipboard Media File Provider -->
         <provider

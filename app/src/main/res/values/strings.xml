@@ -8,6 +8,41 @@
     <string name="repli_learning_clear_summary">Delete saved words and phrase counts from this device</string>
     <string name="repli_learning_clear_confirm">Delete Repli\'s learned words and phrases?</string>
     <string name="repli_learning_clear_action">Delete</string>
+    <string name="repli_account__title">Repli account</string>
+    <string name="repli_account__description">Sign in to enable optional cloud replies. Typing, suggestions, and adaptive learning stay on-device. Network is used only to exchange your sign-in for a short-lived Repli session and to send captured text you explicitly approve to your configured Repli backend.</string>
+    <string name="repli_account__email">Email</string>
+    <string name="repli_account__password">Password</string>
+    <string name="repli_account__sign_in">Sign in</string>
+    <string name="repli_account__create_account">Create account</string>
+    <string name="repli_account__sign_out">Sign out</string>
+    <string name="repli_account__signed_in_as">Signed in as {email}</string>
+    <string name="repli_account__not_configured_title">Cloud replies unavailable</string>
+    <string name="repli_account__not_configured_summary">This build has no Repli backend/Firebase configuration. On-device typing still works.</string>
+    <string name="repli_chats__title">Repli chats</string>
+    <string name="repli_chats__saved_title">Saved chats</string>
+    <string name="repli_chats__empty_title">No saved chats yet</string>
+    <string name="repli_chats__empty_summary">Add a chat below, or confirm a sender from a WhatsApp or Telegram notification while typing.</string>
+    <string name="repli_chats__add_title">Add a chat</string>
+    <string name="repli_chats__name_hint">Name</string>
+    <string name="repli_chats__add_action">Save chat</string>
+    <string name="repli_chats__manage_title">Manage</string>
+    <string name="repli_chats__remove_title">Remove {name}</string>
+    <string name="repli_chats__hint">Tap a saved chat to cycle its tone (Casual → Warm → Direct). Saving needs only a name and a tone. Notification senders are never trusted until you confirm them.</string>
+    <string name="repli_replies__title">Repli replies</string>
+    <string name="repli_replies__cloud_title">Cloud replies</string>
+    <string name="repli_replies__cloud_toggle">Use cloud replies when signed in</string>
+    <string name="repli_replies__cloud_on">On · each request shows the exact payload for approval before anything is sent.</string>
+    <string name="repli_replies__cloud_off">Off · replies come from the on-device model only.</string>
+    <string name="repli_replies__sign_in_first">Sign in first</string>
+    <string name="repli_replies__context_title">Reply context</string>
+    <string name="repli_replies__notification_access">Notification access</string>
+    <string name="repli_replies__guided_capture">Guided capture</string>
+    <string name="repli_replies__on">Enabled</string>
+    <string name="repli_replies__off">Disabled</string>
+    <string name="repli_replies__how_it_works">Suggest replies from the keyboard in any chat composer. With one identifiable WhatsApp or Telegram conversation it uses the confirmed notification; otherwise it captures the visible view with on-device OCR. Cloud generation only runs after you approve the exact payload, and falls back to on-device replies on any failure. Nothing is ever sent automatically.</string>
+    <string name="repli_replies__suggest_from_keyboard">Suggest replies (from the keyboard)</string>
+    <string name="repli_replies__mic_title">Voice guidance</string>
+    <string name="repli_replies__mic_note">The microphone inside Reply direction transcribes on-device only. Audio is never saved or uploaded.</string>
 
     <string name="key_popup__threedots_alt" comment="Content description for the three-dots icon in a key popup">Three-dot icon. If visible, indicates that more letters can be used if longer pressed.</string>
 
@@ -181,7 +216,7 @@
         Accent color (Material You themes)
     </string>
     <string name="settings__theme_manager__title_manage" comment="Title of the theme manager screen for managing installed and custom themes">Manage installed themes</string>
-    <string name="pref__theme__source_assets" comment="Label for the theme source field">FlorisBoard App Assets</string>
+    <string name="pref__theme__source_assets" comment="Label for the theme source field">Repli Keyboard Assets</string>
     <string name="pref__theme__source_internal" comment="Label for the theme source field">Internal Storage</string>
     <string name="pref__theme__source_external" comment="Label for the theme source field">External Provider</string>
 
@@ -595,7 +630,7 @@
     <string name="about__privacy_policy__title" comment="Preference title">Privacy policy</string>
     <string name="about__privacy_policy__summary" comment="Preference summary">The privacy policy for this project</string>
     <string name="about__project_license__title" comment="Preference title">Project license</string>
-    <string name="about__project_license__summary" comment="Preference summary">Includes FlorisBoard ({license_name}) and a GPL-3.0 dictionary</string>
+    <string name="about__project_license__summary" comment="Preference summary">Includes Repli Keyboard ({license_name}) and a GPL-3.0 dictionary</string>
     <string name="about__project_license__error_license_text_failed" comment="Error text for license text loading failure">Error: failed to load license text.\n-&gt; Reason: {error_message}</string>
     <string name="about__project_license__error_reason_asset_manager_null" comment="Error text if asset manager is null">Asset manager reference is null</string>
     <string name="about__third_party_licenses__title" comment="Preference title">Third-party licenses</string>
@@ -831,7 +866,7 @@
     <string name="ext__export__failure">Failed to export extension: {error_message}</string>
     <string name="ext__import__success">Successfully imported extension!</string>
     <string name="ext__import__failure">Failed to import extension: {error_message}</string>
-    <string name="ext__import__ext_any" comment="Title of Importer screen for import of any supported FlorisBoard extension">Import extension</string>
+    <string name="ext__import__ext_any" comment="Title of Importer screen for import of any supported Repli extension">Import extension</string>
     <string name="ext__import__ext_keyboard" comment="Title of Importer screen for keyboard extension import">Import keyboard extension</string>
     <string name="ext__import__ext_theme" comment="Title of Importer screen for theme extension import">Import theme extension</string>
     <string name="ext__import__ext_languagepack" comment="Title of Importer screen for language pack extension import">Import language pack extension</string>
@@ -866,12 +901,12 @@
     <string name="ext__validation__enter_percent_size">Please enter a percent size</string>
     <string name="ext__validation__enter_number_between_0_100">Please enter a positive number between 0 and 100</string>
     <string name="ext__validation__hint_value_above_50_percent">Any value above 50% will behave as if you set 50%, consider lowering your percent size</string>
-    <string name="ext__update_box__internet_permission_hint">Since this app does not have Internet permission, updates for installed extensions must be checked manually.</string>
+    <string name="ext__update_box__internet_permission_hint">Network is only used for optional Repli account/cloud replies. Extension updates must still be checked manually.</string>
     <string name="ext__update_box__search_for_updates">Search for updates</string>
     <string name="ext__addon_management_box__managing_placeholder">Managing {extensions}</string>
     <string name="ext__addon_management_box__addon_manager_info">All tasks related to importing, exporting, creating, customizing, and removing extensions can be handled through the centralized addon manager.</string>
     <string name="ext__addon_management_box__go_to_page">Go to {ext_home_title}</string>
-    <string name="ext__home__info">You can download and install extensions from the FlorisBoard Addons Store or import any extension file you have downloaded from the internet.</string>
+    <string name="ext__home__info">You can download and install extensions from the Addons Store or import any extension file you have downloaded.</string>
     <string name="ext__home__visit_store">Visit Addons Store</string>
     <string name="ext__home__manage_extensions">Manage installed extensions</string>
     <string name="ext__list__view_details">View details</string>
@@ -1154,5 +1189,8 @@
         <item quantity="one">{v} candidate</item>
         <item quantity="other">{v} candidates</item>
     </plurals>
+
+    <string name="notification_service_name">repli recent message context</string>
+    <string name="auto_scroll_accessibility_description">After you start a Repli screen capture, shows a glowing border with Capture view and Done controls while you choose chat pages. It does not read accessibility content, perform gestures, interact with the chat, type, or send messages.</string>
 
 </resources>

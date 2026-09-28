@@ -19,6 +19,9 @@ package dev.patrickgold.florisboard.app.settings
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.outlined.Assignment
+import androidx.compose.material.icons.filled.AccountCircle
+import androidx.compose.material.icons.filled.AutoAwesome
+import androidx.compose.material.icons.filled.Chat
 import androidx.compose.material.icons.filled.Extension
 import androidx.compose.material.icons.filled.Gesture
 import androidx.compose.material.icons.filled.Language
@@ -76,6 +79,21 @@ fun HomeScreen() = FlorisScreen {
             icon = Icons.Default.Language,
             title = stringRes(R.string.settings__localization__title),
             onClick = { navController.navigate(Routes.Settings.Localization) },
+        )
+        Preference(
+            icon = Icons.Default.AccountCircle,
+            title = stringRes(R.string.repli_account__title),
+            onClick = { navController.navigate(Routes.Settings.Account) },
+        )
+        Preference(
+            icon = Icons.Default.Chat,
+            title = stringRes(R.string.repli_chats__title),
+            onClick = { navController.navigate(Routes.Settings.RepliChats) },
+        )
+        Preference(
+            icon = Icons.Default.AutoAwesome,
+            title = stringRes(R.string.repli_replies__title),
+            onClick = { navController.navigate(Routes.Settings.RepliReplies) },
         )
         Preference(
             icon = Icons.Outlined.Palette,

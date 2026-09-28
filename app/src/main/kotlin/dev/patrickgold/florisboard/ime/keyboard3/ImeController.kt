@@ -5,7 +5,6 @@
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
-import dev.patrickgold.florisboard.ime.text.key.KeyCode
  * http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
@@ -17,6 +16,7 @@ import dev.patrickgold.florisboard.ime.text.key.KeyCode
 
 package dev.patrickgold.florisboard.ime.keyboard3
 
+import android.content.Context
 import android.icu.text.BreakIterator
 import android.view.KeyEvent
 import android.view.inputmethod.InputConnection
@@ -32,6 +32,11 @@ import dev.patrickgold.florisboard.ime.keyboard.IncognitoMode
 import dev.patrickgold.florisboard.ime.keyboard3.touch.TouchModelCache
 import dev.patrickgold.florisboard.ime.media.emoji.EmojiSuggestionType
 import dev.patrickgold.florisboard.ime.nlp.BreakIterators
+import dev.patrickgold.florisboard.ime.nlp.latin.TypingPredictionPolicy
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.RepliInputAssistant
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.TypingContext
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.WordPrediction
+import dev.patrickgold.florisboard.ime.nlp.latin.repli.WordPredictionEngine
 import dev.patrickgold.florisboard.ime.text.key.KeyVariation
 import dev.patrickgold.florisboard.lib.FlorisLocale
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
@@ -39,6 +44,8 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.runBlocking
 import org.florisboard.lib.kotlin.collectIn
 import org.k3lp.lib.text.K3Descriptor
@@ -63,6 +70,7 @@ val LocalImeController = staticCompositionLocalOf<ImeController> {
 class ImeController(
     initialState: ImeState = ImeState(),
     val touchModelCache: TouchModelCache = TouchModelCache(),
+    context: Context? = null,
 ) : K3InputMethod<ImeState, ImeEditor, ImeController.UpdateImeStateScope>(
     initialState = initialState,
 ) {
@@ -70,6 +78,43 @@ class ImeController(
     private val scope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private val breakIterators = BreakIterators()
     private val expectedContentQueue = ExpectedContentQueue()
+    private val _repliSuggestions = MutableStateFlow<List<WordPrediction>>(emptyList())
+    val repliSuggestions = _repliSuggestions.asStateFlow()
+    val repliAssistant = context?.let { RepliInputAssistant(it) { refreshRepliSuggestions() } }
+
+    fun refreshRepliSuggestions() = refreshRepliSuggestions(activeState.value)
+
+    private fun refreshRepliSuggestions(current: ImeState) {
+        val assistant = repliAssistant
+        _repliSuggestions.value = if (assistant != null && isRepliAllowed(current)) {
+            assistant.suggest(current.typingContext())
+        } else emptyList()
+    }
+
+    private fun isRepliAllowed(current: ImeState): Boolean =
+        current.editor !== ImeEditor.Disconnected &&
+            current.model.locales.firstOrNull()?.startsWith("en") == true &&
+            !current.flags.isIncognitoMode && prefs.suggestion.enabled.get() &&
+            TypingPredictionPolicy.allows(current.editor.info) &&
+            current.content.selection.isCollapsed()
+
+    private fun ImeState.typingContext(): TypingContext = TypingContext(
+        before = content.surroundingText.textBefore.takeLast(WordPredictionEngine.BEFORE_LIMIT),
+        after = content.surroundingText.textAfter.take(WordPredictionEngine.AFTER_LIMIT),
+        selectionStart = content.selection.start,
+        selectionEnd = content.selection.end,
+    )
+
+    fun commitRepliSuggestion(prediction: WordPrediction) {
+        updateStateBlocking {
+            if (!isRepliAllowed(state) || repliAssistant?.suggest(state.typingContext())?.contains(prediction) != true) return@updateStateBlocking
+            val before = state.content.surroundingText.textBefore
+            val previous = before.dropLast(prediction.removeBefore)
+            replaceRepliWord(prediction)
+            repliAssistant?.learn(previous, prediction.word)
+            refreshRepliSuggestions(state)
+        }
+    }
 
     init {
         combine(
@@ -228,6 +273,7 @@ class ImeController(
             )
             resetContent(initialSelection, initialSurrounding)
             expectedContentQueue.clear()
+            refreshRepliSuggestions(state)
         }
 
         fun handleUpdateSelection(newSelection: K3TextRange) {
@@ -238,10 +284,40 @@ class ImeController(
             }
             resetContent(newSelection, state.editor.getSurroundingText(50, 10))
             expectedContentQueue.push(state.content)
+            refreshRepliSuggestions(state)
         }
 
         override fun emitText(value: K3String) {
+            val committedText = value.toText()
+            val before = state.content.surroundingText.textBefore
+            val after = state.content.surroundingText.textAfter
+            val word = before.takeLastWhile { it.isLetter() || it == '\'' || it == '’' }
+            val canLearn = word.isNotEmpty() && committedText.firstOrNull()?.let { !it.isLetter() && it != '\'' && it != '’' } == true &&
+                after.firstOrNull()?.let { it.isLetter() || it == '\'' || it == '’' } != true &&
+                !before.takeLastWhile { !it.isWhitespace() }.let { it.contains('@') || it.contains("://") || it.startsWith("www.", true) } &&
+                isRepliAllowed(state)
+            var learnedWord = word
+            if (canLearn && committedText == " ") {
+                val correction = repliAssistant?.autocorrection(state.typingContext())
+                    ?.takeIf { it.removeBefore == word.length && it.removeAfter == 0 }
+                if (correction != null) {
+                    replaceRepliWord(correction)
+                    learnedWord = correction.word
+                }
+            }
             super.emitText(value)
+            expectedContentQueue.push(state.content)
+            if (canLearn) repliAssistant?.learn(before.dropLast(word.length), learnedWord)
+            refreshRepliSuggestions(state)
+        }
+
+        fun replaceRepliWord(prediction: WordPrediction) {
+            val start = state.content.selection.start - prediction.removeBefore
+            val end = state.content.selection.end + prediction.removeAfter
+            val replacement = prediction.replacement
+            val selection = K3TextRange(start + replacement.length, start + replacement.length)
+            state.editor.replaceText(start until end, replacement, selection, null)
+            resetContent(selection, state.editor.getSurroundingText(WordPredictionEngine.BEFORE_LIMIT, WordPredictionEngine.AFTER_LIMIT))
             expectedContentQueue.push(state.content)
         }
 
@@ -300,6 +376,7 @@ class ImeController(
         override fun emitBackspace() {
             super.emitBackspace()
             expectedContentQueue.push(state.content)
+            refreshRepliSuggestions(state)
         }
 
         override fun emitEnter() {
@@ -361,6 +438,7 @@ class ImeController(
             resetContent()
             state = state.copy(editor = ImeEditor.Disconnected)
             expectedContentQueue.clear()
+            refreshRepliSuggestions(state)
         }
 
         override fun evaluateCompositionOf(

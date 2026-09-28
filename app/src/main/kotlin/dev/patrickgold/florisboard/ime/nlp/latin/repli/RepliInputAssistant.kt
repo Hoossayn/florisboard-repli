@@ -1,0 +1,87 @@
+package dev.patrickgold.florisboard.ime.nlp.latin.repli
+
+import android.content.Context
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
+
+/** Owns the offline dictionary and the private, bounded language model used by the active IME. */
+class RepliInputAssistant(context: Context, private val onReady: () -> Unit) {
+    private val appContext = context.applicationContext
+    private val engine = WordPredictionEngine()
+    private val repository = AdaptiveLanguageRepository(appContext)
+    private val preferences = KeyboardLearningPreferences(appContext)
+    private val initialRevision = preferences.revision
+    private val scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
+    private val fileMutex = Mutex()
+    @Volatile private var model = AdaptiveLanguageModel()
+    @Volatile private var ready = false
+    private var saveJob: Job? = null
+
+    init {
+        engine.setAdaptiveEnabled(preferences.enabled)
+        scope.launch {
+            runCatching {
+                appContext.assets.open("ime/dict/repli-en_us.dict").use(BundledKeyboardLexicon::load)
+            }.onSuccess(engine::installLexicon)
+            val loaded = fileMutex.withLock { repository.load() }
+            if (initialRevision == preferences.revision) {
+                model = loaded
+                engine.installAdaptiveModel(loaded)
+            }
+            ready = true
+            onReady()
+        }
+    }
+
+    fun suggest(context: TypingContext): List<WordPrediction> {
+        val correction = engine.autocorrection(context)?.copy(space = true)
+        return (listOfNotNull(correction) + engine.suggest(context))
+            .distinctBy { it.word.lowercase() }
+            .take(3)
+    }
+
+    fun autocorrection(context: TypingContext): WordPrediction? = engine.autocorrection(context)
+
+    fun learn(contextBeforeWord: String, committedWord: String) {
+        if (!ready || !preferences.enabled) return
+        val previous = WORD.findAll(contextBeforeWord.lowercase()).map { it.value }.toList().takeLast(2)
+        if (model.observe(previous, committedWord)) scheduleSave()
+    }
+
+    fun setLearningEnabled(enabled: Boolean) {
+        preferences.enabled = enabled
+        engine.setAdaptiveEnabled(enabled)
+        onReady()
+    }
+
+    fun isLearningEnabled(): Boolean = preferences.enabled
+
+    fun clearLearning() {
+        preferences.markCleared()
+        saveJob?.cancel()
+        model = AdaptiveLanguageModel().also(engine::installAdaptiveModel)
+        scope.launch { fileMutex.withLock { repository.clear() } }
+        onReady()
+    }
+
+    private fun scheduleSave() {
+        val revision = preferences.revision
+        saveJob?.cancel()
+        saveJob = scope.launch {
+            delay(600)
+            fileMutex.withLock {
+                if (revision == preferences.revision) repository.save(model)
+            }
+        }
+    }
+
+    private companion object {
+        val WORD = Regex("[\\p{L}]+(?:'[\\p{L}]+)?")
+    }
+}

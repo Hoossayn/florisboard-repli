@@ -17,8 +17,8 @@
 package dev.patrickgold.florisboard.ime.nlp
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.LruCache
-import androidx.lifecycle.MutableLiveData
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
 import dev.patrickgold.florisboard.clipboardManager
 import dev.patrickgold.florisboard.editorInstance
@@ -30,7 +30,6 @@ import dev.patrickgold.florisboard.ime.editor.EditorRange
 import dev.patrickgold.florisboard.ime.media.emoji.EmojiSuggestionProvider
 import dev.patrickgold.florisboard.ime.nlp.han.HanShapeBasedLanguageProvider
 import dev.patrickgold.florisboard.ime.nlp.latin.LatinLanguageProvider
-import dev.patrickgold.florisboard.ime.nlp.latin.TypingPredictionPolicy
 import dev.patrickgold.florisboard.keyboardManager
 import dev.patrickgold.florisboard.lib.util.NetworkUtils
 import dev.patrickgold.florisboard.subtypeManager
@@ -39,6 +38,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.sync.Mutex
@@ -46,8 +46,6 @@ import kotlinx.coroutines.sync.withLock
 import org.florisboard.lib.kotlin.guardedByLock
 import org.florisboard.lib.kotlin.collectLatestIn
 import java.util.concurrent.atomic.AtomicBoolean
-import java.util.concurrent.atomic.AtomicInteger
-import java.util.concurrent.atomic.AtomicLong
 import kotlin.properties.Delegates
 
 private const val BLANK_STR_PATTERN = "^\\s*$"
@@ -74,8 +72,7 @@ class NlpManager(context: Context) {
     private val providersForceSuggestionOn = mutableMapOf<String, Boolean>()
 
     private val internalSuggestionsGuard = Mutex()
-    private val suggestionRequestId = AtomicLong(0)
-    private var internalSuggestions by Delegates.observable(0L to listOf<SuggestionCandidate>()) { _, _, _ ->
+    private var internalSuggestions by Delegates.observable(SystemClock.uptimeMillis() to listOf<SuggestionCandidate>()) { _, _, _ ->
         scope.launch { assembleCandidates() }
     }
 
@@ -88,8 +85,7 @@ class NlpManager(context: Context) {
         }
 
     val debugOverlaySuggestionsInfos = LruCache<Long, Pair<String, SpellingResult>>(10)
-    var debugOverlayVersion = MutableLiveData(0)
-    private val debugOverlayVersionSource = AtomicInteger(0)
+    var debugOverlayVersion = MutableStateFlow(0)
 
     init {
         clipboardManager.primaryClipFlow.collectLatestIn(scope) {
@@ -126,8 +122,7 @@ class NlpManager(context: Context) {
      * @return The punctuation rule or a fallback.
      */
     fun getPunctuationRule(subtype: Subtype): PunctuationRule {
-        return keyboardManager.resources.punctuationRules.value
-            ?.get(subtype.punctuationRule) ?: PunctuationRule.Fallback
+        return keyboardManager.resources.punctuationRules.value[subtype.punctuationRule] ?: PunctuationRule.Fallback
     }
 
     private suspend fun getSpellingProvider(subtype: Subtype): SpellingProvider {
@@ -172,7 +167,7 @@ class NlpManager(context: Context) {
             followingWords = followingWords,
             maxSuggestionCount = maxSuggestionCount,
             allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
-            isPrivateSession = keyboardManager.activeState.isIncognitoMode,
+            isPrivateSession = false// TODO keyboardManager.activeState.isIncognitoMode,
         )
     }
 
@@ -199,10 +194,7 @@ class NlpManager(context: Context) {
             || providerForcesSuggestionOn(subtypeManager.activeSubtype)
 
     fun suggest(subtype: Subtype, content: EditorContent) {
-        val reqTime = suggestionRequestId.incrementAndGet()
-        val wordSuggestionsAllowed =
-            (subtype.primaryLocale.language != "en" || TypingPredictionPolicy.allows(editorInstance.activeInfo)) &&
-                (prefs.suggestion.enabled.get() || providerForcesSuggestionOn(subtype))
+        val reqTime = SystemClock.uptimeMillis()
         scope.launch {
             val emojiSuggestions = when {
                 prefs.emoji.suggestionEnabled.get() -> {
@@ -211,13 +203,12 @@ class NlpManager(context: Context) {
                         content = content,
                         maxCandidateCount = prefs.emoji.suggestionCandidateMaxCount.get(),
                         allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
-                        isPrivateSession = keyboardManager.activeState.isIncognitoMode,
+                        isPrivateSession = false // TODO keyboardManager.activeState.isIncognitoMode,
                     )
                 }
                 else -> emptyList()
             }
             val suggestions = when {
-                !wordSuggestionsAllowed -> emptyList()
                 emojiSuggestions.isNotEmpty() && prefs.emoji.suggestionType.get().prefix.isNotEmpty() -> {
                     emptyList()
                 }
@@ -227,7 +218,7 @@ class NlpManager(context: Context) {
                         content = content,
                         maxCandidateCount = 8,
                         allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
-                        isPrivateSession = keyboardManager.activeState.isIncognitoMode,
+                        isPrivateSession = false // TODO keyboardManager.activeState.isIncognitoMode,
                     )
                 }
             }
@@ -243,27 +234,21 @@ class NlpManager(context: Context) {
     }
 
     fun suggestDirectly(suggestions: List<SuggestionCandidate>) {
-        val reqTime = suggestionRequestId.incrementAndGet()
+        val reqTime = SystemClock.uptimeMillis()
         runBlocking {
             internalSuggestions = reqTime to suggestions
         }
     }
 
     fun clearSuggestions() {
-        val reqTime = suggestionRequestId.incrementAndGet()
+        val reqTime = SystemClock.uptimeMillis()
         runBlocking {
             internalSuggestions = reqTime to emptyList()
         }
     }
 
     fun getAutoCommitCandidate(): SuggestionCandidate? {
-        val content = editorInstance.activeContent
-        return activeCandidates.firstOrNull { candidate ->
-            candidate.isEligibleForAutoCommit &&
-                (candidate !is WordSuggestionCandidate || candidate.sourceText == null ||
-                    (TypingPredictionPolicy.allows(editorInstance.activeInfo) &&
-                        content.selection.isCursorMode && content.composingText == candidate.sourceText))
-        }
+        return activeCandidates.firstOrNull { it.isEligibleForAutoCommit }
     }
 
     fun removeSuggestion(subtype: Subtype, candidate: SuggestionCandidate): Boolean {
@@ -298,7 +283,7 @@ class NlpManager(context: Context) {
                         content = editorInstance.activeContent,
                         maxCandidateCount = 8,
                         allowPossiblyOffensive = !prefs.suggestion.blockPossiblyOffensive.get(),
-                        isPrivateSession = keyboardManager.activeState.isIncognitoMode,
+                        isPrivateSession = false // TODO keyboardManager.activeState.isIncognitoMode,
                     ).ifEmpty {
                         buildList {
                             internalSuggestionsGuard.withLock {
@@ -336,15 +321,13 @@ class NlpManager(context: Context) {
     }
 
     fun addToDebugOverlay(word: String, info: SpellingResult) {
-        val version = debugOverlayVersionSource.incrementAndGet()
         debugOverlaySuggestionsInfos.put(System.currentTimeMillis(), word to info)
-        debugOverlayVersion.postValue(version)
+        debugOverlayVersion.update { it + 1 }
     }
 
     fun clearDebugOverlay() {
-        val version = debugOverlayVersionSource.incrementAndGet()
         debugOverlaySuggestionsInfos.evictAll()
-        debugOverlayVersion.postValue(version)
+        debugOverlayVersion.update { it + 1 }
     }
 
     private class ProviderInstanceWrapper(val provider: NlpProvider) {

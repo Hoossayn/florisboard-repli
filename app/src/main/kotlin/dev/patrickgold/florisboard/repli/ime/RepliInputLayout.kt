@@ -14,6 +14,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
@@ -396,9 +399,10 @@ private fun MoreRepliesFooter(onDirection: () -> Unit, onMore: () -> Unit) {
                 Text("Tell Repli what you want…", color = Muted, fontSize = 12.sp)
             }
         }
-        Button(onClick = onMore, modifier = Modifier.height(44.dp),
-            shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-            Text("More suggestions", color = OnAccent, fontSize = 12.sp)
+        Button(onClick = onMore, modifier = Modifier.height(38.dp),
+            shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent),
+            contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+            Text("More suggestions", color = OnAccent, fontSize = 11.sp)
         }
     }
 }
@@ -540,19 +544,31 @@ fun RepliInlineToneBar(modifier: Modifier = Modifier) {
 fun RepliInlineSuggestionRow(modifier: Modifier = Modifier) {
     val controller = LocalImeController.current.repliReply ?: return
     val ui by controller.uiState.collectAsState()
-    val first = ui.suggestions.firstOrNull() ?: return
-    Row(modifier.fillMaxWidth().height(54.dp).background(Paper).padding(horizontal = 7.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(7.dp), verticalAlignment = Alignment.CenterVertically) {
-        Surface(modifier = Modifier.weight(1f).height(44.dp).clickable { controller.insertSuggestion(first) },
-            color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
-            Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
-                Text(first, color = Ink, fontSize = 12.sp, maxLines = 2,
-                    overflow = TextOverflow.Ellipsis)
+    val firstThree = ui.suggestions.take(3)
+    if (firstThree.isEmpty()) return
+    val replyWidth = minOf(LocalConfiguration.current.screenWidthDp.dp * 0.72f, 300.dp)
+    LazyRow(
+        modifier = modifier.fillMaxWidth().height(54.dp).background(Paper),
+        contentPadding = PaddingValues(horizontal = 7.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(7.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        items(firstThree) { suggestion ->
+            Surface(modifier = Modifier.width(replyWidth).height(44.dp)
+                .clickable { controller.insertSuggestion(suggestion) },
+                color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
+                Box(Modifier.padding(horizontal = 10.dp), contentAlignment = Alignment.Center) {
+                    Text(suggestion, color = Ink, fontSize = 12.sp, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis)
+                }
             }
         }
-        Button(onClick = controller::openMoreReplies, modifier = Modifier.height(44.dp),
-            shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent)) {
-            Text("More suggestions", color = OnAccent, fontSize = 11.sp)
+        item {
+            Button(onClick = controller::openMoreReplies, modifier = Modifier.height(38.dp),
+                shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
+                Text("More suggestions", color = OnAccent, fontSize = 11.sp)
+            }
         }
     }
 }

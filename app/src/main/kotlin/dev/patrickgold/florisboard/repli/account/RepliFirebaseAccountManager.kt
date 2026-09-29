@@ -6,6 +6,7 @@ import androidx.credentials.CredentialManager
 import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.NoCredentialException
 import com.google.android.gms.tasks.Task
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -117,7 +118,11 @@ object RepliFirebaseAccountManager {
             .setFilterByAuthorizedAccounts(false)
             .build()
         val request = GetCredentialRequest.Builder().addCredentialOption(googleOption).build()
-        val credential = CredentialManager.create(activity).getCredential(activity, request).credential
+        val credential = try {
+            CredentialManager.create(activity).getCredential(activity, request).credential
+        } catch (_: NoCredentialException) {
+            error("No Google account is available on this device. Add an account and try again.")
+        }
         check(credential is CustomCredential &&
             credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
             "Google did not return a sign-in credential."

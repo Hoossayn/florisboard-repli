@@ -1,7 +1,7 @@
 package dev.patrickgold.florisboard.app.settings.repli
 
-import android.app.Activity
 import android.os.Build
+import androidx.activity.compose.LocalActivity
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
@@ -37,7 +37,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -59,20 +58,22 @@ internal object RepliStyle {
 
 @Composable
 internal fun RepliPage(content: @Composable () -> Unit) {
-    val window = (LocalContext.current as Activity).window
+    val window = LocalActivity.current?.window
     val paper = RepliStyle.paper
     val dark = isSystemInDarkTheme()
     val previewFieldController = LocalPreviewFieldController.current
     SideEffect {
         previewFieldController?.isVisible = false
-        val controller = WindowCompat.getInsetsController(window, window.decorView)
-        window.statusBarColor = paper.toArgb()
-        window.navigationBarColor = paper.toArgb()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-            window.isNavigationBarContrastEnforced = false
+        if (window != null) {
+            val controller = WindowCompat.getInsetsController(window, window.decorView)
+            window.statusBarColor = paper.toArgb()
+            window.navigationBarColor = paper.toArgb()
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                window.isNavigationBarContrastEnforced = false
+            }
+            controller.isAppearanceLightStatusBars = !dark
+            controller.isAppearanceLightNavigationBars = !dark
         }
-        controller.isAppearanceLightStatusBars = !dark
-        controller.isAppearanceLightNavigationBars = !dark
     }
     Column(Modifier.fillMaxSize().background(paper).statusBarsPadding()) {
         androidx.compose.foundation.layout.Row(

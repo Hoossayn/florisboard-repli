@@ -139,7 +139,7 @@ class ImeController(
             val before = state.content.surroundingText.textBefore
             val previous = before.dropLast(prediction.removeBefore)
             replaceRepliWord(prediction)
-            repliAssistant?.learn(previous, prediction.word)
+            repliAssistant.learn(previous, prediction.word)
             refreshRepliSuggestions(state)
         }
     }

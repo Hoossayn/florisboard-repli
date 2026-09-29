@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.width
 import androidx.window.core.layout.WindowSizeClass
 import androidx.window.core.layout.computeWindowSizeClass
 
+private typealias BP = WindowSizeClass.Companion
+
 /**
  * The form factor describes the size class of a window, and takes a guess at the type of device and orientation.
  *
@@ -59,7 +61,6 @@ data class ImeFormFactor(
          * @param boundsDp The root window bounds in dp.
          */
         fun of(boundsDp: DpRect): ImeFormFactor {
-            typealias BP = WindowSizeClass.Companion
             val sizeClass = WindowSizeClass.BREAKPOINTS_V2.computeWindowSizeClass(
                 widthDp = boundsDp.width.value,
                 heightDp = boundsDp.height.value,

@@ -105,10 +105,13 @@ class ServerMediatedContextEngine internal constructor(
             ) throw RemoteReplyException("Context backend returned an invalid bubble")
             VisualBubble(text, speaker == "me", TurnSource(frameIndex, left, top, right, bottom))
         }
-        val contactName = when (val value = json.opt("contact_name")) {
-            null, JSONObject.NULL -> null
-            is String -> CapturedContactName.prepare(value)
-            else -> throw RemoteReplyException("Context contact name must be text or null")
+        val rawContactName: Any? = json.opt("contact_name")
+        val contactName = if (rawContactName == null || rawContactName == JSONObject.NULL) {
+            null
+        } else if (rawContactName is String) {
+            CapturedContactName.prepare(rawContactName)
+        } else {
+            throw RemoteReplyException("Context contact name must be text or null")
         }
         // Capture order is authoritative. A backend frame_order field is intentionally ignored so
         // neither the model nor an older backend can rearrange pages after the user's explicit taps.

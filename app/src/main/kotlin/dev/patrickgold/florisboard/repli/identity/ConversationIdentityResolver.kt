@@ -22,6 +22,7 @@ sealed interface ConversationIdentityResolution {
     ) : ConversationIdentityResolution
 }
 
+@ConsistentCopyVisibility
 data class ConfirmedConversationIdentity internal constructor(
     val message: RecentMessage,
     val profileId: String,

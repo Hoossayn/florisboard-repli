@@ -21,15 +21,16 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisallowComposableCalls
 import androidx.compose.runtime.State
 import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.remember
 import dev.patrickgold.jetpref.datastore.model.PreferenceData
 import kotlinx.coroutines.flow.map
 
 @SuppressLint("StateFlowValueCalledInComposition")
 @Composable
 inline fun <V : Any, R : Any> PreferenceData<V>.observeAsTransformingState(
-    crossinline transform: @DisallowComposableCalls (V) -> R,
+    noinline transform: @DisallowComposableCalls (V) -> R,
 ): State<R> {
-    return asFlow().let { flow ->
-        flow.map { transform(it) }.collectAsState(transform(flow.value))
-    }
+    val flow = remember(this) { asFlow() }
+    val transformed = remember(flow, transform) { flow.map { transform(it) } }
+    return transformed.collectAsState(transform(flow.value))
 }

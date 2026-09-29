@@ -3,6 +3,7 @@ package dev.patrickgold.florisboard.repli.notifications
 import android.app.Notification
 import android.app.Person
 import android.os.Bundle
+import android.os.Build
 import android.service.notification.NotificationListenerService
 import android.service.notification.StatusBarNotification
 import dev.patrickgold.florisboard.repli.data.RecentMessageRepository
@@ -35,10 +36,11 @@ class RecentMessageNotificationService : NotificationListenerService() {
                 receivedAt = notification.postTime,
                 notificationKey = notification.key,
                 conversationId = notification.notification.shortcutId,
-                isGroupConversation = notification.notification.extras.getBoolean(
-                    Notification.EXTRA_IS_GROUP_CONVERSATION,
-                    false,
-                ),
+                isGroupConversation = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    notification.notification.extras.getBoolean(Notification.EXTRA_IS_GROUP_CONVERSATION, false)
+                } else {
+                    false
+                },
             ),
         )
     }
@@ -78,9 +80,13 @@ class RecentMessageNotificationService : NotificationListenerService() {
         for (item in messages.reversed()) {
             val bundle = item as? Bundle ?: continue
             val text = bundle.getCharSequence("text")?.toString()?.trim().orEmpty()
-            val person = bundle.getParcelable<Person>("sender_person")
+            val personName = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                bundle.getParcelable<Person>("sender_person")?.name?.toString()?.trim()
+            } else {
+                null
+            }
             val sender = bundle.getCharSequence("sender")?.toString()?.trim()
-                ?: person?.name?.toString()?.trim()
+                ?: personName
                 ?: extras.getCharSequence(Notification.EXTRA_TITLE)?.toString()?.trim().orEmpty()
             if (sender.isNotBlank() && text.isNotBlank()) return sender to text
         }

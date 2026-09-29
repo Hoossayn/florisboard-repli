@@ -3,6 +3,7 @@ package dev.patrickgold.florisboard.repli.capture
 /** One bounded sequence of cropped chat images held until automatic AI reading begins.
  * Images remain in the exact oldest-to-newest order captured by the user.
  * Every terminal path overwrites all PNG bytes. */
+@ConsistentCopyVisibility
 data class PendingVisionCapture internal constructor(
     val requestId: String,
     val images: List<ByteArray>,

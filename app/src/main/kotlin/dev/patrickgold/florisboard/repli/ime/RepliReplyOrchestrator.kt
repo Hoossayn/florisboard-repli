@@ -326,9 +326,15 @@ class RepliReplyOrchestrator(
     }
 
     fun openMoreReplies() {
+        val state = ReplyCaptureSession.state.value ?: return
+        if (state.replies.isEmpty()) return
         moreRepliesExpanded = true
         showRepliesPanel()
         publish()
+        // The strip's More suggestions tap is itself a request for another cloud batch.
+        if (state.phase == ReplyPhase.READY && !state.busy && state.replies.size <= 3) {
+            requestMoreSuggestions()
+        }
     }
 
     fun backToKeyboard() {
@@ -1015,10 +1021,14 @@ class RepliReplyOrchestrator(
                     pendingRemoteRequest = null
                     lastApprovedRequest = approved
                     pendingMore = false
+                    val combined = (keep + replies).distinct().take(9)
                     ReplyCaptureSession.update(state.id) {
                         it.copy(phase = ReplyPhase.READY,
-                            replies = (keep + replies).distinct().take(9),
-                            message = "Cloud replies · tap to insert, then edit", generationError = null)
+                            replies = combined,
+                            message = if (more && combined.size == keep.size) {
+                                "No new replies this time · add a direction or try again"
+                            } else "Cloud replies · tap to insert, then edit",
+                            generationError = null)
                     }
                     flogDebug { "RepliReply: READY cloud replies=${replies.size}" }
                 }

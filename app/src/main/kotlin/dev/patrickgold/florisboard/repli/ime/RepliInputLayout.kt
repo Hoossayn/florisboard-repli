@@ -270,6 +270,8 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             ui.suggestions.isNotEmpty() -> MoreRepliesFooter(
                 onDirection = orchestrator::openGuidance,
                 onMore = orchestrator::requestMoreSuggestions,
+                canGenerateMore = ui.canGenerateMore,
+                busy = ui.busy,
             )
             !ui.busy && ui.suggestions.isEmpty() -> PanelFooter("Capture chat", onClick = orchestrator::beginSuggestion)
         }
@@ -390,7 +392,9 @@ private fun ApprovalBody(
 }
 
 @Composable
-private fun MoreRepliesFooter(onDirection: () -> Unit, onMore: () -> Unit) {
+private fun MoreRepliesFooter(
+    onDirection: () -> Unit, onMore: () -> Unit, canGenerateMore: Boolean, busy: Boolean,
+) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
         Surface(modifier = Modifier.weight(1f).height(44.dp).clickable(onClick = onDirection),
@@ -399,10 +403,10 @@ private fun MoreRepliesFooter(onDirection: () -> Unit, onMore: () -> Unit) {
                 Text("Tell Repli what you want…", color = Muted, fontSize = 12.sp)
             }
         }
-        Button(onClick = onMore, modifier = Modifier.height(38.dp),
+        Button(onClick = onMore, enabled = canGenerateMore, modifier = Modifier.height(38.dp),
             shape = CardShape, colors = ButtonDefaults.buttonColors(containerColor = Accent),
             contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp)) {
-            Text("More suggestions", color = OnAccent, fontSize = 11.sp)
+            Text(if (busy) "Generating…" else "More suggestions", color = OnAccent, fontSize = 11.sp)
         }
     }
 }

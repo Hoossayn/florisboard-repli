@@ -50,7 +50,9 @@ fun repliMobileConfig(name: String): String = providers.gradleProperty(name)
 val repliBackendUrl = repliMobileConfig("ASSISTED_REPLY_BACKEND_URL")
 val repliFirebaseApiKey = repliMobileConfig("ASSISTED_FIREBASE_API_KEY")
 val repliFirebaseAppId = repliMobileConfig("ASSISTED_FIREBASE_APPLICATION_ID")
+val repliFirebaseDebugAppId = repliMobileConfig("ASSISTED_FIREBASE_APPLICATION_ID_DEBUG")
 val repliFirebaseProjectId = repliMobileConfig("ASSISTED_FIREBASE_PROJECT_ID")
+val repliGoogleWebClientId = repliMobileConfig("ASSISTED_GOOGLE_WEB_CLIENT_ID")
 fun String.asBuildConfigString(): String = replace("\\", "\\\\").replace("\"", "\\\"")
 
 kotlin {
@@ -96,6 +98,7 @@ configure<ApplicationExtension> {
         buildConfigField("String", "REPLI_FIREBASE_API_KEY", "\"${repliFirebaseApiKey.asBuildConfigString()}\"")
         buildConfigField("String", "REPLI_FIREBASE_APP_ID", "\"${repliFirebaseAppId.asBuildConfigString()}\"")
         buildConfigField("String", "REPLI_FIREBASE_PROJECT_ID", "\"${repliFirebaseProjectId.asBuildConfigString()}\"")
+        buildConfigField("String", "REPLI_GOOGLE_WEB_CLIENT_ID", "\"${repliGoogleWebClientId.asBuildConfigString()}\"")
 
         sourceSets {
             maybeCreate("main").apply {
@@ -122,6 +125,9 @@ configure<ApplicationExtension> {
         named("debug") {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug+${getGitCommitHash(short = true).get()}"
+            if (repliFirebaseDebugAppId.isNotBlank()) {
+                buildConfigField("String", "REPLI_FIREBASE_APP_ID", "\"${repliFirebaseDebugAppId.asBuildConfigString()}\"")
+            }
 
             isDebuggable = true
             isJniDebuggable = false
@@ -232,6 +238,9 @@ dependencies {
     implementation(libs.patrickgold.jetpref.material.ui)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.auth)
+    implementation(libs.androidx.credentials)
+    implementation(libs.androidx.credentials.play.services.auth)
+    implementation(libs.googleid)
     implementation(libs.mlkit.smart.reply)
     implementation(libs.mlkit.text.recognition)
 

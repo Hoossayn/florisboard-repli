@@ -1,16 +1,26 @@
 package dev.patrickgold.florisboard.repli.account
 
+import android.app.Activity
 import android.content.Context
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.google.android.gms.tasks.Task
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.FirebaseApp
 import com.google.firebase.FirebaseOptions
 import com.google.firebase.auth.EmailAuthProvider
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthException
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 import com.google.firebase.auth.FirebaseAuthWeakPasswordException
 import com.google.firebase.auth.FirebaseUser
+import com.google.firebase.auth.GoogleAuthProvider
+import com.google.firebase.auth.OAuthProvider
 import dev.patrickgold.florisboard.BuildConfig
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
@@ -99,6 +109,34 @@ object RepliFirebaseAccountManager {
         exchangeFor(result.user ?: error("Firebase did not return the signed-in account."), forceRefresh = true)
     }
 
+    suspend fun signInWithGoogle(activity: Activity): Result<Unit> = accountOperation {
+        val clientId = BuildConfig.REPLI_GOOGLE_WEB_CLIENT_ID
+        check(clientId.isNotBlank()) { "Google sign-in needs the Firebase web client ID in this build." }
+        val googleOption = GetGoogleIdOption.Builder()
+            .setServerClientId(clientId)
+            .setFilterByAuthorizedAccounts(false)
+            .build()
+        val request = GetCredentialRequest.Builder().addCredentialOption(googleOption).build()
+        val credential = CredentialManager.create(activity).getCredential(activity, request).credential
+        check(credential is CustomCredential &&
+            credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL) {
+            "Google did not return a sign-in credential."
+        }
+        val idToken = GoogleIdTokenCredential.createFrom(credential.data).idToken
+        val result = requireAuth().signInWithCredential(
+            GoogleAuthProvider.getCredential(idToken, null),
+        ).awaitResult()
+        exchangeFor(result.user ?: error("Firebase did not return the Google account."), forceRefresh = true)
+    }
+
+    suspend fun signInWithApple(activity: Activity): Result<Unit> = accountOperation {
+        val firebaseAuth = requireAuth()
+        val provider = OAuthProvider.newBuilder("apple.com").build()
+        val result = (firebaseAuth.pendingAuthResult
+            ?: firebaseAuth.startActivityForSignInWithProvider(activity, provider)).awaitResult()
+        exchangeFor(result.user ?: error("Firebase did not return the Apple account."), forceRefresh = true)
+    }
+
     fun signOut() {
         auth?.signOut()
         RepliAccountSessionRepository.clear()
@@ -141,6 +179,9 @@ object RepliFirebaseAccountManager {
         } catch (cancellation: CancellationException) {
             publishAccountState(busy = false)
             throw cancellation
+        } catch (cancellation: GetCredentialCancellationException) {
+            publishAccountState(busy = false, errorMessage = null)
+            Result.failure(cancellation)
         } catch (error: Throwable) {
             publishAccountState(busy = false, errorMessage = friendlyError(error))
             Result.failure(error)
@@ -213,6 +254,11 @@ internal fun friendlyError(error: Throwable): String = when (error) {
     is FirebaseAuthInvalidCredentialsException -> "The email or password is not valid."
     is FirebaseAuthInvalidUserException -> "That account is unavailable."
     is FirebaseAuthUserCollisionException -> "An account already exists for that email."
+    is FirebaseAuthException -> if (error.errorCode == "ERROR_OPERATION_NOT_ALLOWED") {
+        "This sign-in method isn't enabled in Firebase yet."
+    } else {
+        "Account sign-in failed. Check your connection and try again."
+    }
     is RepliRecentAuthRequiredException -> "Sign in again before deleting the account."
     is RepliAccountAuthException -> "Your account session was rejected. Sign in again."
     is RepliAccountBackendException -> error.message ?: "The account service is unavailable."

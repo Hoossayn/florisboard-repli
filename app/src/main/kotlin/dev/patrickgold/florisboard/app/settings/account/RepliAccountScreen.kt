@@ -1,5 +1,6 @@
 package dev.patrickgold.florisboard.app.settings.account
 
+import android.app.Activity
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -20,6 +21,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.unit.dp
 import dev.patrickgold.florisboard.BuildConfig
@@ -37,6 +39,7 @@ fun RepliAccountScreen() = FlorisScreen {
 
     content {
         val accountState by RepliFirebaseAccountManager.state.collectAsState()
+        val activity = LocalContext.current as Activity
         val scope = rememberCoroutineScope()
         var email by remember { mutableStateOf("") }
         var password by remember { mutableStateOf("") }
@@ -77,6 +80,20 @@ fun RepliAccountScreen() = FlorisScreen {
                     Text(stringRes(R.string.repli_account__sign_out))
                 }
             } else {
+                Button(
+                    onClick = { scope.launch { RepliFirebaseAccountManager.signInWithGoogle(activity) } },
+                    enabled = !accountState.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Continue with Google") }
+                Spacer(Modifier.height(8.dp))
+                OutlinedButton(
+                    onClick = { scope.launch { RepliFirebaseAccountManager.signInWithApple(activity) } },
+                    enabled = !accountState.busy,
+                    modifier = Modifier.fillMaxWidth(),
+                ) { Text("Continue with Apple") }
+                Spacer(Modifier.height(18.dp))
+                Text("Or use email")
+                Spacer(Modifier.height(8.dp))
                 OutlinedTextField(
                     value = email,
                     onValueChange = { email = it },

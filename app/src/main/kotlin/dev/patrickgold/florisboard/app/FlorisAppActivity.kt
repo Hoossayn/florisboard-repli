@@ -46,6 +46,7 @@ import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.apptheme.FlorisAppTheme
 import dev.patrickgold.florisboard.app.ext.ExtensionImportScreenType
 import dev.patrickgold.florisboard.app.settings.repli.RepliBottomNav
+import dev.patrickgold.florisboard.repli.account.RepliWelcomePreferences
 import dev.patrickgold.florisboard.appContext
 import dev.patrickgold.florisboard.cacheManager
 import dev.patrickgold.florisboard.lib.FlorisLocale
@@ -165,6 +166,10 @@ class FlorisAppActivity : ComponentActivity() {
     private fun AppContent() {
         val navController = rememberNavController()
         val previewFieldController = rememberPreviewFieldController()
+        val startDestination = androidx.compose.runtime.remember {
+            if (RepliWelcomePreferences.shouldShow(this@FlorisAppActivity))
+                Routes.Settings.RepliWelcome::class else Routes.Settings.RepliHome::class
+        }
 
         CompositionLocalProvider(
             LocalNavController provides navController,
@@ -187,7 +192,7 @@ class FlorisAppActivity : ComponentActivity() {
                     Routes.AppNavHost(
                         modifier = Modifier.weight(1.0f),
                         navController = navController,
-                        startDestination = Routes.Settings.RepliHome::class,
+                        startDestination = startDestination,
                     )
                     PreviewKeyboardField(previewFieldController)
                     RepliBottomNav(navController)

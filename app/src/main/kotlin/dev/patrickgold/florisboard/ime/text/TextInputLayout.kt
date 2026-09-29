@@ -36,6 +36,7 @@ import dev.patrickgold.florisboard.ime.smartbar.IncognitoDisplayMode
 import dev.patrickgold.florisboard.ime.smartbar.InlineSuggestionsStyleCache
 import dev.patrickgold.florisboard.ime.smartbar.Smartbar
 import dev.patrickgold.florisboard.repli.ime.RepliInlineGuidance
+import dev.patrickgold.florisboard.repli.ime.RepliReadingBanner
 import dev.patrickgold.florisboard.repli.ime.RepliInlineSuggestionRow
 import dev.patrickgold.florisboard.repli.ime.RepliInlineToneBar
 import dev.patrickgold.florisboard.ime.smartbar.quickaction.QuickActionsOverflowPanel
@@ -66,6 +67,12 @@ fun TextInputLayout(
             .fillMaxWidth()
             .wrapContentHeight(),
     ) {
+        if (repliUi?.reading == true) {
+            RepliReadingBanner(
+                viewCount = repliUi.reviewFrames,
+                onCancel = { imeController.repliReply.clear() },
+            )
+        }
         if (repliUi?.guidanceOpen == true) {
             RepliInlineGuidance()
         } else if (repliUi?.suggestions?.isNotEmpty() == true) {

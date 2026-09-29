@@ -28,6 +28,7 @@ import androidx.compose.material.icons.filled.Mic
 import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
@@ -48,6 +49,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -59,6 +63,7 @@ import dev.patrickgold.florisboard.ime.keyboard3.LocalImeController
 import dev.patrickgold.florisboard.repli.capture.ConversationTurn
 import dev.patrickgold.florisboard.repli.voice.VoicePhase
 import dev.patrickgold.florisboard.repli.voice.VoiceRecordingState
+import kotlinx.coroutines.delay
 import org.florisboard.lib.compose.stringRes
 
 private val Paper: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF17151E) else Color(0xFFF3F0FA)
@@ -74,6 +79,46 @@ private val ErrorCard: Color @Composable get() = if (isSystemInDarkTheme()) Colo
 private val ErrorLine: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFF8A5357) else Color(0xFFE8B8B5)
 private val ErrorText: Color @Composable get() = if (isSystemInDarkTheme()) Color(0xFFFFC9C5) else Color(0xFF8B2925)
 private val CardShape = RoundedCornerShape(16.dp)
+
+@Composable
+fun RepliReadingBanner(viewCount: Int, onCancel: () -> Unit) {
+    var takingLonger by remember(viewCount) { mutableStateOf(false) }
+    LaunchedEffect(viewCount) {
+        delay(8_000)
+        takingLonger = true
+    }
+    val title = if (viewCount > 0) {
+        "Reading $viewCount captured view${if (viewCount == 1) "" else "s"}"
+    } else {
+        "Reading captured chat"
+    }
+    Surface(
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        shape = CardShape,
+        color = Card,
+        border = BorderStroke(1.dp, Line),
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+        ) {
+            CircularProgressIndicator(modifier = Modifier.size(20.dp), color = Accent, strokeWidth = 2.dp)
+            Column(Modifier.weight(1f)) {
+                Text(title, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                Text(
+                    if (takingLonger) "Still reading · you'll review messages next"
+                    else "You'll review messages before getting ideas",
+                    color = Muted, fontSize = 10.sp, maxLines = 2,
+                )
+            }
+            TextButton(onClick = onCancel, contentPadding = PaddingValues(horizontal = 6.dp)) {
+                Text("Cancel", color = Accent, fontSize = 11.sp)
+            }
+        }
+    }
+}
 
 @Composable
 fun RepliInputLayout(modifier: Modifier = Modifier) {

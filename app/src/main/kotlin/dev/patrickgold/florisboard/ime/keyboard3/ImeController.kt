@@ -48,6 +48,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import org.florisboard.lib.kotlin.collectIn
 import org.k3lp.lib.text.K3Descriptor
@@ -92,13 +93,17 @@ class ImeController(
             showKeyboard = { FlorisImeService.showUi() },
             startActivity = { app.startActivity(it) },
             showTypingPanel = {
-                updateStateBlocking {
-                    state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.TEXT))
+                scope.launch(Dispatchers.Main) {
+                    updateState {
+                        state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.TEXT))
+                    }
                 }
             },
             showRepliesPanel = {
-                updateStateBlocking {
-                    state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.REPLI))
+                scope.launch(Dispatchers.Main) {
+                    updateState {
+                        state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.REPLI))
+                    }
                 }
             },
         )

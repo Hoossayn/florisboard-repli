@@ -93,6 +93,7 @@ data class RepliReplyUiState(
     val status: String = "",
     val generationError: String? = null,
     val busy: Boolean = false,
+    val reading: Boolean = false,
     val confirm: RepliConfirmChip? = null,
     val suggestions: List<String> = emptyList(),
     val explanation: String? = null,
@@ -148,6 +149,7 @@ class RepliReplyOrchestrator(
 
     private var generation: Job? = null
     private var captureLaunch: Job? = null
+    private var readingJob: Job? = null
     private var editor: ReplyEditor? = null
     private var sensitive = true
     private var profiles: List<VoiceProfile> = emptyList()
@@ -230,7 +232,7 @@ class RepliReplyOrchestrator(
             flogDebug { "RepliReply: round-trip restore consumed=$consumed id=${current.id}" }
             editor = incoming
             sensitive = false
-            return true
+            return current.phase != ReplyPhase.READING
         }
         if (current != null) {
             flogDebug { "RepliReply: clearing session id=${current.id} phase=${current.phase}" }
@@ -377,6 +379,7 @@ class RepliReplyOrchestrator(
         }
         generation?.cancel()
         captureLaunch?.cancel()
+        readingJob?.cancel()
         closeVoiceRecorder()
         pendingRemoteRequest = null
         lastApprovedRequest = null
@@ -427,6 +430,7 @@ class RepliReplyOrchestrator(
     fun clear() {
         generation?.cancel()
         captureLaunch?.cancel()
+        readingJob?.cancel()
         voiceReturnExpiry?.cancel()
         closeVoiceRecorder()
         pendingRemoteRequest = null
@@ -832,6 +836,7 @@ class RepliReplyOrchestrator(
         if (state == null) {
             generation?.cancel()
             captureLaunch?.cancel()
+            readingJob?.cancel()
             voiceReturnExpiry?.cancel()
             closeVoiceRecorder()
             pendingRemoteRequest = null
@@ -855,12 +860,21 @@ class RepliReplyOrchestrator(
             }
         }
         when (state.phase) {
-            ReplyPhase.RETURNING, ReplyPhase.READING -> {
+            ReplyPhase.RETURNING -> {
                 if (state.viewport != null) hideKeyboard() else if (state.awaitingKeyboardReturn) showKeyboard()
+            }
+            ReplyPhase.READING -> {
+                if (state.viewport != null) {
+                    hideKeyboard()
+                } else {
+                    if (state.awaitingKeyboardReturn) showKeyboard()
+                    showTypingPanel()
+                }
             }
             ReplyPhase.MICROPHONE_RETURNING -> resumeAfterMicrophonePermission(state)
             ReplyPhase.CAPTURE_REVIEW -> {
                 showKeyboard()
+                showTypingPanel()
                 handleCaptureReview(state)
             }
             ReplyPhase.REVIEW -> {
@@ -933,7 +947,8 @@ class RepliReplyOrchestrator(
             }
             return
         }
-        scope.launch(Dispatchers.IO) {
+        readingJob?.cancel()
+        readingJob = scope.launch(Dispatchers.IO) {
             val taken = PendingVisionCaptureStore.take(state.id) ?: return@launch
             ReplyCaptureSession.update(state.id) {
                 it.copy(phase = ReplyPhase.READING, viewport = null, message = "AI is reading this chat image…")
@@ -1202,6 +1217,7 @@ class RepliReplyOrchestrator(
         mutable.value = current.copy(
             active = active,
             busy = session?.busy == true,
+            reading = session?.phase == ReplyPhase.READING && session.viewport == null,
             status = when {
                 session == null && !current.active -> ""
                 session == null -> current.status.ifBlank { defaultIdleStatus() }

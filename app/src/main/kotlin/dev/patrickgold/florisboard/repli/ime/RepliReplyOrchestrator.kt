@@ -35,7 +35,7 @@ import dev.patrickgold.florisboard.repli.data.RemoteGenerationPreferences
 import dev.patrickgold.florisboard.repli.identity.ConfirmedConversationIdentity
 import dev.patrickgold.florisboard.repli.identity.ConversationIdentityResolution
 import dev.patrickgold.florisboard.repli.identity.ConversationIdentityResolver
-import dev.patrickgold.florisboard.repli.identity.CapturedContactName
+import dev.patrickgold.florisboard.repli.identity.CapturedContactProfileMatcher
 import dev.patrickgold.florisboard.repli.profile.ProfileMatcher
 import dev.patrickgold.florisboard.repli.profile.RecentMessage
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
@@ -888,7 +888,7 @@ class RepliReplyOrchestrator(
             if (turns.isEmpty() && state.turns.isEmpty()) {
                 ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
             } else {
-                taken?.contactName?.let { selectCapturedContact(it) }
+                selectCapturedContact(taken?.contactName)
                 ReplyCaptureSession.update(state.id) {
                     it.copy(phase = ReplyPhase.REVIEW, viewport = null, turns = turns, message = "On-device text · AI reading unavailable. Check messages before cloud generation.")
                 }
@@ -919,7 +919,7 @@ class RepliReplyOrchestrator(
                         ReviewEvidenceStore.discard(state.id)
                         ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
                     } else {
-                        (ai.contactName ?: taken.contactName)?.let { selectCapturedContact(it) }
+                        selectCapturedContact(taken.contactName, ai.contactName)
                         ReplyCaptureSession.update(state.id) {
                             it.copy(phase = ReplyPhase.REVIEW, turns = merged, message =
                                 if (usedLocalText) "AI found no messages · review the on-device text"
@@ -937,7 +937,7 @@ class RepliReplyOrchestrator(
                     if (fallback.isEmpty()) {
                         ReplyCaptureSession.fail(state.id, "AI reading was unavailable and on-device reading found no messages. Try a clearer capture.")
                     } else {
-                        taken.contactName?.let { selectCapturedContact(it) }
+                        selectCapturedContact(taken.contactName)
                         ReplyCaptureSession.update(state.id) {
                             it.copy(phase = ReplyPhase.REVIEW, turns = fallback, message = "AI reading unavailable · review the on-device text")
                         }
@@ -1093,12 +1093,18 @@ class RepliReplyOrchestrator(
             (RepliAccountSessionRepository.bearerToken() != null ||
                 RepliFirebaseAccountManager.state.value.signedIn)
 
-    private fun selectCapturedContact(name: String) {
-        val prepared = CapturedContactName.prepare(name) ?: return
+    private fun selectCapturedContact(localHeaderName: String?, aiName: String? = null) {
+        if (localHeaderName == null && aiName == null) return
         scope.launch(Dispatchers.IO) {
             val repository = ProfileRepository(appContext)
-            val existing = repository.findByName(prepared)
-            val profile = existing ?: repository.add(prepared, "Added from AI capture", VoiceStyle.CASUAL)
+            val match = CapturedContactProfileMatcher.resolve(
+                localHeaderName, aiName, repository.profiles(),
+            ) ?: return@launch
+            val profile = when (match) {
+                is CapturedContactProfileMatcher.Result.Existing -> match.profile
+                is CapturedContactProfileMatcher.Result.New ->
+                    repository.add(match.name, "Added from AI capture", VoiceStyle.CASUAL)
+            }
             withContext(Dispatchers.Main) {
                 profiles = repository.profiles()
                 selectedProfileId = profile.id

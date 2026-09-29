@@ -4,11 +4,17 @@ package dev.patrickgold.florisboard.repli.identity
 object CapturedContactName {
     private val genericTitles = setOf(
         "whatsapp", "telegram", "messenger", "messages", "chat", "online", "typing", "you",
+        "5g", "4g", "lte", "volte",
     )
+    private val clock = Regex("(?<!\\d)\\d{1,2}:\\d{2}(?::\\d{2})?(?!\\d)")
+    private val phone = Regex("^\\+?[\\d()\\s-]+$")
 
     fun prepare(value: String?): String? {
         val name = value?.replace(Regex("\\s+"), " ")?.trim() ?: return null
-        if (name.length !in 1..MAX_LENGTH || name.none { it.isLetterOrDigit() }) return null
+        if (name.length !in 1..MAX_LENGTH || clock.containsMatchIn(name)) return null
+        val hasLetters = name.any(Char::isLetter)
+        val isPhone = phone.matches(name) && name.count(Char::isDigit) in 10..15
+        if (!hasLetters && !isPhone) return null
         val key = name.lowercase()
         if (key in genericTitles || key.startsWith("last seen") ||
             Regex("^\\d+\\s+(members|participants)$").matches(key)
@@ -19,8 +25,10 @@ object CapturedContactName {
     /** The header is read on device and never sent with the cropped conversation image. */
     fun fromHeaderLines(lines: List<String>): String? {
         val cleaned = lines.map { it.trim() }.filter { it.isNotEmpty() }
-        val title = cleaned.firstOrNull() ?: return null
-        val subtitles = cleaned.drop(1)
+        val titleIndex = cleaned.indexOfFirst { prepare(it) != null }
+        if (titleIndex < 0) return null
+        val title = cleaned[titleIndex]
+        val subtitles = cleaned.drop(titleIndex + 1)
         if (subtitles.any { subtitle ->
                 subtitle.contains(',') || subtitle.contains("participants", ignoreCase = true) ||
                     subtitle.contains("members", ignoreCase = true)

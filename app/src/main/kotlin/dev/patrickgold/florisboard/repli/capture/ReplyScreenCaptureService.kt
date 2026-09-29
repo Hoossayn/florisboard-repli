@@ -23,6 +23,7 @@ import android.os.IBinder
 import android.os.Looper
 import android.os.SystemClock
 import android.view.WindowManager
+import android.view.WindowInsets
 import android.widget.Toast
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
 import dev.patrickgold.florisboard.lib.devtools.flogError
@@ -441,7 +442,13 @@ class ReplyScreenCaptureService : Service() {
             plane.buffer.rewind()
             padded.copyPixelsFromBuffer(plane.buffer)
             val chat = Bitmap.createBitmap(padded, 0, cropTop, width, cropBottom - cropTop)
-            val headerTop = dp(24).coerceAtMost(cropTop)
+            val statusBarBottom = if (Build.VERSION.SDK_INT >= 30) {
+                runCatching {
+                    getSystemService(WindowManager::class.java).maximumWindowMetrics.windowInsets
+                        .getInsetsIgnoringVisibility(WindowInsets.Type.statusBars()).top
+                }.getOrDefault(dp(24))
+            } else dp(24)
+            val headerTop = (statusBarBottom + dp(4)).coerceAtMost(cropTop)
             val header = if (readHeader && cropTop - headerTop >= dp(24)) {
                 runCatching { Bitmap.createBitmap(padded, 0, headerTop, width, cropTop - headerTop) }.getOrNull()
             } else null

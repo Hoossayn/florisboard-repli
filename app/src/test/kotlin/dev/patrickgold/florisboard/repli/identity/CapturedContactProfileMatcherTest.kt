@@ -58,6 +58,12 @@ class CapturedContactProfileMatcherTest {
             CapturedContactProfileMatcher.resolve("Abdulhakeem", "Christopher", listOf(saved)))
     }
 
+    @Test fun `clock readings cannot become a saved chat`() {
+        assertNull(CapturedContactProfileMatcher.resolve(
+            localHeaderName = "10:48 00:00", aiName = "10:48", profiles = emptyList(),
+        ))
+    }
+
     private fun profile(name: String) = VoiceProfile(
         id = "profile-$name", name = name, relationship = "Added from AI capture",
         style = VoiceStyle.CASUAL,

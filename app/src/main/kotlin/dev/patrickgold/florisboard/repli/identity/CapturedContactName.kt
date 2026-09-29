@@ -16,5 +16,17 @@ object CapturedContactName {
         return name
     }
 
+    /** The header is read on device and never sent with the cropped conversation image. */
+    fun fromHeaderLines(lines: List<String>): String? {
+        val cleaned = lines.map { it.trim() }.filter { it.isNotEmpty() }
+        val title = cleaned.firstOrNull() ?: return null
+        val subtitles = cleaned.drop(1)
+        if (subtitles.any { subtitle ->
+                subtitle.contains(',') || subtitle.contains("participants", ignoreCase = true) ||
+                    subtitle.contains("members", ignoreCase = true)
+            }) return null
+        return prepare(title.removeSuffix(" · practice chat"))
+    }
+
     const val MAX_LENGTH = 80
 }

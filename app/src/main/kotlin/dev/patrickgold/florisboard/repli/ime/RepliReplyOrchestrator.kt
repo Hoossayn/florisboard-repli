@@ -882,6 +882,7 @@ class RepliReplyOrchestrator(
             if (turns.isEmpty() && state.turns.isEmpty()) {
                 ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
             } else {
+                taken?.contactName?.let { selectCapturedContact(it) }
                 ReplyCaptureSession.update(state.id) {
                     it.copy(phase = ReplyPhase.REVIEW, viewport = null, turns = turns, message = "On-device text · AI reading unavailable. Check messages before cloud generation.")
                 }
@@ -900,7 +901,6 @@ class RepliReplyOrchestrator(
                     ReviewEvidenceStore.discard(state.id)
                     return@launch
                 }
-                ai.contactName?.let { selectCapturedContact(it) }
                 val captured = ReplyConversation.mergeVisualBubbles(ai.bubbles.orEmpty(), taken.images.size)
                     .ifEmpty { ai.turns }
                 // AI visual bubbles are authoritative. Local OCR can introduce duplicate or
@@ -913,6 +913,7 @@ class RepliReplyOrchestrator(
                         ReviewEvidenceStore.discard(state.id)
                         ReplyCaptureSession.fail(state.id, "This looks like a new or empty chat. Send the first message before capturing context.")
                     } else {
+                        (ai.contactName ?: taken.contactName)?.let { selectCapturedContact(it) }
                         ReplyCaptureSession.update(state.id) {
                             it.copy(phase = ReplyPhase.REVIEW, turns = merged, message =
                                 if (usedLocalText) "AI found no messages · review the on-device text"
@@ -930,6 +931,7 @@ class RepliReplyOrchestrator(
                     if (fallback.isEmpty()) {
                         ReplyCaptureSession.fail(state.id, "AI reading was unavailable and on-device reading found no messages. Try a clearer capture.")
                     } else {
+                        taken.contactName?.let { selectCapturedContact(it) }
                         ReplyCaptureSession.update(state.id) {
                             it.copy(phase = ReplyPhase.REVIEW, turns = fallback, message = "AI reading unavailable · review the on-device text")
                         }

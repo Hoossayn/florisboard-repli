@@ -72,7 +72,7 @@ fun RepliChatsScreen() {
             RepliCard {
                 RepliLabel("No saved chats yet", 19, RepliStyle.ink, bold = true)
                 Spacer(Modifier.height(8.dp))
-                RepliLabel("Start here with a name and a tone, or tap Save in the keyboard when a recent message identifies the person. You can get replies without saving a chat, too.",
+                RepliLabel("Capture a one-to-one chat and Repli will save its name here automatically. You can also add a chat yourself, or get replies without saving one.",
                     14, RepliStyle.muted)
             }
         } else {

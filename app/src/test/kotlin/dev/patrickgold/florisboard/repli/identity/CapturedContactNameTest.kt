@@ -14,4 +14,11 @@ class CapturedContactNameTest {
         listOf(null, "", "WhatsApp", "online", "last seen today", "18 participants", "x".repeat(81))
             .forEach { assertNull(CapturedContactName.prepare(it)) }
     }
+
+    @Test fun `uses a chat title from the locally read header`() {
+        assertEquals("Abdulhakeem", CapturedContactName.fromHeaderLines(listOf("Abdulhakeem", "online")))
+        assertEquals("Alex", CapturedContactName.fromHeaderLines(listOf("Alex · practice chat")))
+        assertNull(CapturedContactName.fromHeaderLines(listOf("WhatsApp")))
+        assertNull(CapturedContactName.fromHeaderLines(listOf("Weekend plans", "Ada, Ben, Chika")))
+    }
 }

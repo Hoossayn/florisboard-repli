@@ -26,6 +26,7 @@ import android.view.WindowManager
 import android.widget.Toast
 import dev.patrickgold.florisboard.lib.devtools.flogDebug
 import dev.patrickgold.florisboard.lib.devtools.flogError
+import dev.patrickgold.florisboard.repli.identity.CapturedContactName
 import dev.patrickgold.florisboard.repli.suggestions.ServerMediatedContextEngine
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
@@ -53,6 +54,7 @@ class ReplyScreenCaptureService : Service() {
     private var captureReadyAt = 0L
     private var framesCaptured = 0
     private var capturedTurns: List<ConversationTurn> = emptyList()
+    private var capturedContactName: String? = null
     private val capturedImages = mutableListOf<ByteArray>()
     private var manualCaptureStartedAt = 0L
     private var lastCapturedSignature: IntArray? = null
@@ -156,18 +158,21 @@ class ReplyScreenCaptureService : Service() {
         val image = runCatching { reader?.acquireLatestImage() }.getOrNull()
         if (image == null) { handler.postDelayed(captureAttempt, 100); return }
         processing = true
-        val bitmap = try {
-            image.chatBitmap(viewport.contentBottom)
+        val bitmaps = try {
+            image.captureBitmaps(viewport.contentBottom, capturedContactName == null)
         } catch (_: Exception) {
             null
         } finally { image.close() }
-        if (bitmap == null) { fail("Not enough of the conversation is visible. Close extra panels and try again."); return }
+        if (bitmaps == null) { fail("Not enough of the conversation is visible. Close extra panels and try again."); return }
+        val bitmap = bitmaps.chat
+        val headerBitmap = bitmaps.header
         val signature = bitmap.visualSignature()
         if (manualCaptureActive) {
             capturePageRequested = false
             val previous = lastCapturedSignature
             if (previous != null && visualDifference(previous, signature) < VISUAL_CHANGE_THRESHOLD) {
                 bitmap.recycle()
+                headerBitmap?.recycle()
                 processing = false
                 val message = "That view is already captured · scroll to another page or tap Done"
                 ReplyCaptureSession.update(requestId) { it.copy(phase = ReplyPhase.RETURNING, message = message) }
@@ -203,13 +208,42 @@ class ReplyScreenCaptureService : Service() {
                 }
                 .addOnCompleteListener {
                     bitmap.recycle()
-                    processing = false
-                    finishFrame(recognizedTurns, imageBytes, signature)
+                    finishReadingHeader(headerBitmap, recognizedTurns, imageBytes, signature)
                 }
         } catch (_: Exception) {
             bitmap.recycle()
+            finishReadingHeader(headerBitmap, emptyList(), imageBytes, signature)
+        }
+    }
+
+    private fun finishReadingHeader(
+        headerBitmap: Bitmap?, frameTurns: List<ConversationTurn>, imageBytes: ByteArray?, signature: IntArray,
+    ) {
+        if (headerBitmap == null || destroyed || ReplyCaptureSession.state.value?.id != requestId) {
+            headerBitmap?.recycle()
             processing = false
-            finishFrame(emptyList(), imageBytes, signature)
+            finishFrame(frameTurns, imageBytes, signature)
+            return
+        }
+        var contactName: String? = null
+        try {
+            recognizer.process(InputImage.fromBitmap(headerBitmap, 0))
+                .addOnSuccessListener { text ->
+                    val lines = text.textBlocks.flatMap { it.lines }
+                        .sortedBy { it.boundingBox?.top ?: Int.MAX_VALUE }
+                        .map { it.text }
+                    contactName = CapturedContactName.fromHeaderLines(lines)
+                }
+                .addOnCompleteListener {
+                    headerBitmap.recycle()
+                    if (capturedContactName == null) capturedContactName = contactName
+                    processing = false
+                    finishFrame(frameTurns, imageBytes, signature)
+                }
+        } catch (_: Exception) {
+            headerBitmap.recycle()
+            processing = false
+            finishFrame(frameTurns, imageBytes, signature)
         }
     }
 
@@ -305,7 +339,7 @@ class ReplyScreenCaptureService : Service() {
         if (capturedImages.isNotEmpty()) {
             val images = capturedImages.toList()
             capturedImages.clear()
-            PendingVisionCaptureStore.put(PendingVisionCapture(requestId, images, baseTurns, capturedTurns))
+            PendingVisionCaptureStore.put(PendingVisionCapture(requestId, images, baseTurns, capturedTurns, capturedContactName))
             ReplyCaptureSession.update(requestId) {
                 it.copy(
                     phase = ReplyPhase.CAPTURE_REVIEW,
@@ -392,7 +426,9 @@ class ReplyScreenCaptureService : Service() {
         }
     }
 
-    private fun Image.chatBitmap(contentBottom: Int): Bitmap? {
+    private data class CaptureBitmaps(val chat: Bitmap, val header: Bitmap?)
+
+    private fun Image.captureBitmaps(contentBottom: Int, readHeader: Boolean): CaptureBitmaps? {
         // Exclude the status/header area and host app composer. Repli's keyboard
         // was already hidden before consent, leaving the expanded chat in between.
         val cropTop = dp(96).coerceAtMost(height / 3)
@@ -404,7 +440,12 @@ class ReplyScreenCaptureService : Service() {
         return try {
             plane.buffer.rewind()
             padded.copyPixelsFromBuffer(plane.buffer)
-            Bitmap.createBitmap(padded, 0, cropTop, width, cropBottom - cropTop)
+            val chat = Bitmap.createBitmap(padded, 0, cropTop, width, cropBottom - cropTop)
+            val headerTop = dp(24).coerceAtMost(cropTop)
+            val header = if (readHeader && cropTop - headerTop >= dp(24)) {
+                runCatching { Bitmap.createBitmap(padded, 0, headerTop, width, cropTop - headerTop) }.getOrNull()
+            } else null
+            CaptureBitmaps(chat, header)
         } finally { padded.recycle() }
     }
 
@@ -448,6 +489,7 @@ class ReplyScreenCaptureService : Service() {
         stopForeground(STOP_FOREGROUND_REMOVE)
         capturedImages.forEach { it.fill(0) }
         capturedImages.clear()
+        capturedContactName = null
         val current = ReplyCaptureSession.state.value
         if (current?.id == requestId && shouldReportCaptureInterruption(captureResultDelivered, current.phase)) {
             ReplyCaptureSession.fail(requestId, "Capture was interrupted. Tap Suggest replies to try again.")

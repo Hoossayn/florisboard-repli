@@ -8,6 +8,7 @@ data class PendingVisionCapture internal constructor(
     val images: List<ByteArray>,
     val baseTurns: List<ConversationTurn>,
     val localTurns: List<ConversationTurn>,
+    val contactName: String? = null,
 ) {
     fun eraseImages() = images.forEach { it.fill(0) }
 }

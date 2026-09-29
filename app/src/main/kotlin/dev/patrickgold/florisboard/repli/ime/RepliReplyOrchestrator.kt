@@ -615,7 +615,7 @@ class RepliReplyOrchestrator(
             ReplyCaptureSession.finishGuidance(id, text,
                 reviewBeforeGenerate = guidanceReviewId == id, returnToReplies = forMore)
         } catch (_: IllegalArgumentException) {
-            update { it.copy(status = "Response guidance is too long (500 characters max)") }
+            update { it.copy(status = "What you want to say is too long (500 characters max)") }
             return
         }
         guidanceDraftId = null
@@ -668,7 +668,7 @@ class RepliReplyOrchestrator(
             recorder.start(true)
         } else {
             if (!ReplyCaptureSession.beginMicrophonePermission(state.id, base)) {
-                update { it.copy(status = "Response guidance is too long (500 characters max)") }
+                update { it.copy(status = "What you want to say is too long (500 characters max)") }
                 closeVoiceRecorder()
                 return
             }
@@ -1066,7 +1066,7 @@ class RepliReplyOrchestrator(
                         it.copy(phase = ReplyPhase.READY,
                             replies = combined,
                             message = if (more && combined.size == keep.size) {
-                                "No new replies this time · add a direction or try again"
+                                "No new replies this time · tell Repli what to change or try again"
                             } else if (approved.profileId != null && batch.memorySaved != true) {
                                 "Replies ready · couldn't save chat memory"
                             } else "Tap to insert, then edit",

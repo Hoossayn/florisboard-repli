@@ -94,7 +94,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
                 contentDescription = "Return to reply approval"
                 setOnClickListener { confirmDiscardOrFinish() }
             }, LinearLayout.LayoutParams(dp(82), dp(44)))
-            addView(label("Review context", 20f, INK, bold = true), LinearLayout.LayoutParams(
+            addView(label("Review chats", 20f, INK, bold = true), LinearLayout.LayoutParams(
                 0,
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 1f,
@@ -116,7 +116,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
                 setPadding(dp(16), dp(8), dp(16), dp(20))
 
                 payload.instructions?.let { direction ->
-                    addView(detailCard("Reply direction", direction), sectionParams(bottom = 12))
+                    addView(detailCard("How do you want to Repli?", direction), sectionParams(bottom = 12))
                 }
                 addView(label("Recent chat · tap a message to correct it", 13f, MUTED, bold = true), sectionParams(bottom = 7))
                 rows = LinearLayout(this@FullScreenContextReviewActivity).apply {
@@ -308,7 +308,7 @@ class FullScreenContextReviewActivity : ComponentActivity() {
         if (!edits.changed) { returnToKeyboard(); return }
         AlertDialog.Builder(this)
             .setTitle("Discard corrections?")
-            .setMessage("Your changes have not been added to Review context yet.")
+            .setMessage("Your chat edits have not been saved yet.")
             .setNegativeButton("Keep editing", null)
             .setPositiveButton("Discard") { _, _ -> returnToKeyboard() }
             .show()

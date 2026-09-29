@@ -41,33 +41,33 @@
     <string name="repli_replies__guided_capture">Guided capture</string>
     <string name="repli_replies__on">Enabled</string>
     <string name="repli_replies__off">Disabled</string>
-    <string name="repli_replies__how_it_works">Capture one or more chat views, check the extracted messages, and add optional direction. Repli AI reads captured images when cloud capture is available; the review panel labels on-device text recognition if that is used instead. Reply generation requires an internet connection, sign-in, and your approval of the exact cloud request. Tap a reply to insert and edit it. Nothing is sent as a chat message automatically.</string>
+    <string name="repli_replies__how_it_works">Capture one or more chat views, check the extracted messages, and optionally tell Repli what you want to say. Repli AI reads captured images when cloud capture is available; the review panel labels on-device text recognition if that is used instead. Reply generation requires an internet connection, sign-in, and your approval of the exact cloud request. Tap a reply to insert and edit it. Nothing is sent as a chat message automatically.</string>
     <string name="repli_replies__suggest_from_keyboard">Suggest replies (from the keyboard)</string>
     <string name="repli_replies__try_practice_flow">Try the reply flow in a practice chat</string>
-    <string name="repli_replies__mic_title">Voice guidance</string>
-    <string name="repli_replies__mic_note">The microphone inside Reply direction transcribes on-device only. Audio is never saved or uploaded.</string>
+    <string name="repli_replies__mic_title">Speak your reply request</string>
+    <string name="repli_replies__mic_note">The microphone inside How do you want to Repli? transcribes on-device only. Audio is never saved or uploaded.</string>
     <string name="repli_panel__title">Repli replies</string>
     <string name="repli_panel__back">Back to keyboard</string>
     <string name="repli_panel__suggest">Suggest replies</string>
-    <string name="repli_panel__direction">Reply direction</string>
+    <string name="repli_panel__direction">How do you want to Repli?</string>
     <string name="repli_panel__clear">Clear</string>
     <string name="repli_panel__more">More replies</string>
-    <string name="repli_panel__review_context">Review context</string>
-    <string name="repli_panel__review_title" comment="{frames} is the number of captured views">Review context · {frames} view(s). Check speakers; remove any non-message text.</string>
+    <string name="repli_panel__review_context">Review chats</string>
+    <string name="repli_panel__review_title" comment="{frames} is the number of captured views">Review chats · {frames} view(s). Check speakers; remove any non-message text.</string>
     <string name="repli_panel__me">Me</string>
     <string name="repli_panel__them">Them</string>
     <string name="repli_panel__remove">Remove message</string>
     <string name="repli_panel__use_context">Use this context</string>
     <string name="repli_panel__add_view">Add view</string>
     <string name="repli_panel__close">Close</string>
-    <string name="repli_panel__direction_title">Reply direction</string>
-    <string name="repli_panel__direction_hint">Optional instructions, e.g. decline politely</string>
-    <string name="repli_panel__apply">Apply</string>
+    <string name="repli_panel__direction_title">How do you want to Repli?</string>
+    <string name="repli_panel__direction_hint">Optional, e.g. I can meet Saturday. Keep it friendly.</string>
+    <string name="repli_panel__apply">Save what to say</string>
     <string name="repli_panel__clear_field">Clear text</string>
     <string name="repli_panel__approval_title">Generate cloud replies?</string>
     <string name="repli_panel__approval_summary" comment="{count} turns, {style} persona, {examples} writing examples">Exact payload: {count} messages · {style} persona · {examples} examples. Shown in full before anything is sent.</string>
-    <string name="repli_panel__generate">Generate replies</string>
-    <string name="repli_voice__mic">Speak direction</string>
+    <string name="repli_panel__generate">Repli, give me ideas</string>
+    <string name="repli_voice__mic">Say what you want to reply</string>
     <string name="repli_voice__pause">Pause</string>
     <string name="repli_voice__resume">Resume</string>
     <string name="repli_voice__stop">Stop</string>

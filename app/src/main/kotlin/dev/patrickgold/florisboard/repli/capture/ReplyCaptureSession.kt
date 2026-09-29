@@ -74,7 +74,7 @@ object ReplyCaptureSession {
         return (previous ?: ReplyCaptureState(id = "", editor = editor)).copy(
             id = UUID.randomUUID().toString(), phase = ReplyPhase.DRAFT,
             replies = if (previous?.phase == ReplyPhase.READY) previous.replies else emptyList(),
-            viewport = null, microphoneDraft = null, recordAfterPermission = false, message = "Add direction for this reply",
+            viewport = null, microphoneDraft = null, recordAfterPermission = false, message = "Tell Repli what you want to say",
         ).also { mutable.value = it }
     }
 
@@ -90,9 +90,9 @@ object ReplyCaptureSession {
                     else -> ReplyPhase.CONTEXT
                 },
                 message = when {
-                    reviewBeforeGenerate && it.turns.isNotEmpty() -> "Review the chat, then generate with your direction"
+                    reviewBeforeGenerate && it.turns.isNotEmpty() -> "Review the chat, then generate with what you want to say"
                     prepared == null -> "Tap the reply icon when you're ready"
-                    else -> "Reply direction added · tap the reply icon"
+                    else -> "What you want to say is saved · tap the reply icon"
                 },
             )
         }

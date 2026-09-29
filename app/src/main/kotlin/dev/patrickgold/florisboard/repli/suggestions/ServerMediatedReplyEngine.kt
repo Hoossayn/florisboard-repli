@@ -189,7 +189,7 @@ enum class CloudReplyFailure(val label: String) {
     SERVICE_CONFIGURATION("Cloud service needs attention"),
     TIMEOUT("Cloud timed out"),
     CONNECTION("Cloud connection failed"),
-    INVALID_REQUEST("Cloud request rejected · review context"),
+    INVALID_REQUEST("Cloud request rejected · check the reviewed chats"),
     INVALID_RESPONSE("Cloud returned an incomplete reply"),
     REFUSED("Cloud couldn't suggest safely"),
 }

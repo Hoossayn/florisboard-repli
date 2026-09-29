@@ -38,6 +38,7 @@ import androidx.compose.ui.layout.layout
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Constraints
 import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.util.fastRoundToInt
 import dev.patrickgold.florisboard.app.FlorisPreferenceStore
@@ -199,9 +200,14 @@ fun ImeKeyboardBox(
                     longPress = longPress,
                     modifier = Modifier
                         .layout { measurable, constraints ->
+                            val keySize = visibleTouchKeySize(
+                                constraints.maxWidth, constraints.maxHeight,
+                                touchKey.bounds.width, touchKey.bounds.height,
+                                keyMarginHPx, keyMarginVPx,
+                            )
                             val effConstraints = Constraints.fixed(
-                                width = (constraints.maxWidth * touchKey.bounds.width - 2 * keyMarginHPx).fastRoundToInt(),
-                                height = (constraints.maxHeight * touchKey.bounds.height - 2 * keyMarginVPx).fastRoundToInt(),
+                                width = keySize.width,
+                                height = keySize.height,
                             )
                             val placeable = measurable.measure(effConstraints)
                             val offset = IntOffset(
@@ -228,6 +234,19 @@ fun ImeKeyboardBox(
         }
     }
 }
+
+internal fun visibleTouchKeySize(
+    keyboardWidth: Int,
+    keyboardHeight: Int,
+    keyWidth: Float,
+    keyHeight: Float,
+    marginH: Float,
+    marginV: Float,
+): IntSize = IntSize(
+    // A keyboard switch can briefly leave a key's slot smaller than its margins.
+    width = (keyboardWidth * keyWidth - 2 * marginH).fastRoundToInt().coerceAtLeast(0),
+    height = (keyboardHeight * keyHeight - 2 * marginV).fastRoundToInt().coerceAtLeast(0),
+)
 
 @Composable
 private fun ImeKeyboardKeyBox(

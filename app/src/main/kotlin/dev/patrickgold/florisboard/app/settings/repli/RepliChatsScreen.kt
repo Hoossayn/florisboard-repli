@@ -2,14 +2,15 @@ package dev.patrickgold.florisboard.app.settings.repli
 
 import android.content.Context
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.OutlinedTextField
@@ -39,7 +40,8 @@ import dev.patrickgold.florisboard.repli.account.ProfileMemoryClient
 import dev.patrickgold.florisboard.repli.account.RepliFirebaseAccountManager
 import dev.patrickgold.florisboard.repli.data.ProfileRepository
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
-import dev.patrickgold.florisboard.repli.profile.VoiceStyle
+import dev.patrickgold.florisboard.repli.persona.Persona
+import dev.patrickgold.florisboard.repli.persona.PersonaRepository
 import kotlinx.coroutines.launch
 
 @Composable
@@ -47,20 +49,23 @@ fun RepliChatsScreen() {
     val context = LocalContext.current
     val navController = LocalNavController.current
     val repository = remember(context) { ProfileRepository(context) }
+    val personaRepository = remember(context) { PersonaRepository(context) }
     val learned = remember(context) { LearnedStyleRepository(context) }
     val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf(repository.profiles()) }
+    var personas by remember { mutableStateOf(personaRepository.personas()) }
     var styleRevision by remember { mutableIntStateOf(0) }
     var addDialog by remember { mutableStateOf(false) }
     var removeProfile by remember { mutableStateOf<VoiceProfile?>(null) }
     var removeError by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf(false) }
-    var toneProfile by remember { mutableStateOf<VoiceProfile?>(null) }
+    var personaProfile by remember { mutableStateOf<VoiceProfile?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 profiles = repository.profiles()
+                personas = personaRepository.personas()
                 styleRevision++
             }
         }
@@ -71,9 +76,11 @@ fun RepliChatsScreen() {
     RepliPage {
         RepliLabel("Your chats", 27, RepliStyle.ink, bold = true)
         Spacer(Modifier.height(6.dp))
-        RepliLabel("Keep the tone. Skip the setup.", 15, RepliStyle.muted)
+        RepliLabel("A different persona for every conversation.", 15, RepliStyle.muted)
         Spacer(Modifier.height(20.dp))
         RepliAction("Add a chat", { addDialog = true })
+        Spacer(Modifier.height(9.dp))
+        RepliAction("Manage personas", { navController.navigate(Routes.Settings.RepliPersonas) }, filled = false)
         Spacer(Modifier.height(16.dp))
         if (profiles.isEmpty()) {
             RepliCard {
@@ -85,14 +92,15 @@ fun RepliChatsScreen() {
         } else {
             profiles.forEach { profile ->
                 val style = remember(profile.id, styleRevision) { learned.getStyle(profile.id) }
+                val persona = personas.firstOrNull { it.id == profile.personaId } ?: personas.first()
                 Surface(Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp),
                     color = RepliStyle.card, border = BorderStroke(1.dp, RepliStyle.line)) {
                     Column(Modifier.padding(start = 14.dp, top = 12.dp, end = 10.dp, bottom = 12.dp)) {
                         Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                             Column(Modifier.weight(1f)) {
                                 RepliLabel(profile.name, 16, RepliStyle.ink, bold = true)
-                                RepliLabel(if (style == null) "${profile.style.displayName} tone"
-                                    else "${profile.style.displayName} · ${style.messagesAnalyzed} writing examples",
+                                RepliLabel(if (style == null) persona.name
+                                    else "${persona.name} · ${style.messagesAnalyzed} writing examples",
                                     13, RepliStyle.muted)
                             }
                             TextButton(onClick = { removeError = null; removeProfile = profile }) {
@@ -100,7 +108,7 @@ fun RepliChatsScreen() {
                             }
                         }
                         Spacer(Modifier.height(12.dp))
-                        RepliAction("Change tone", { toneProfile = profile }, filled = false)
+                        RepliAction("Choose persona", { personaProfile = profile }, filled = false)
                         if (style != null) {
                             Spacer(Modifier.height(10.dp))
                             RepliLabel(style.summary(), 13, RepliStyle.ink)
@@ -131,7 +139,7 @@ fun RepliChatsScreen() {
         }
     }
 
-    if (addDialog) AddChatDialog(context, repository,
+    if (addDialog) AddChatDialog(context, repository, personas,
         onSaved = { profiles = repository.profiles(); addDialog = false },
         onDismiss = { addDialog = false })
     removeProfile?.let { profile ->
@@ -156,35 +164,38 @@ fun RepliChatsScreen() {
             }) { Text(if (removing) "Removing…" else "Remove") } },
             dismissButton = { TextButton(onClick = { removeProfile = null }) { Text("Keep") } })
     }
-    toneProfile?.let { profile ->
-        AlertDialog(onDismissRequest = { toneProfile = null },
-            title = { Text("Tone for ${profile.name}") },
-            text = { Column {
-                VoiceStyle.entries.forEach { style ->
+    personaProfile?.let { profile ->
+        AlertDialog(onDismissRequest = { personaProfile = null },
+            title = { Text("Persona for ${profile.name}") },
+            text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+                personas.forEach { persona ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = profile.style == style, onClick = {
-                            repository.updateStyle(profile.id, style)
+                        RadioButton(selected = profile.personaId == persona.id, onClick = {
+                            repository.updatePersona(profile.id, persona)
                             profiles = repository.profiles()
-                            toneProfile = null
+                            personaProfile = null
                         })
-                        Text(style.displayName)
+                        Column {
+                            Text(persona.name)
+                            RepliLabel(persona.description, 12, RepliStyle.muted)
+                        }
                     }
                 }
             } },
-            confirmButton = { TextButton(onClick = { toneProfile = null }) { Text("Cancel") } })
+            confirmButton = { TextButton(onClick = { personaProfile = null }) { Text("Cancel") } })
     }
 }
 
 @Composable
-private fun AddChatDialog(context: Context, repository: ProfileRepository,
+private fun AddChatDialog(context: Context, repository: ProfileRepository, personas: List<Persona>,
     onSaved: () -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
-    var style by remember { mutableStateOf(VoiceStyle.CASUAL) }
+    var personaId by remember { mutableStateOf("casual") }
     var error by remember { mutableStateOf<String?>(null) }
     AlertDialog(onDismissRequest = onDismiss,
         title = { Text("Save a chat") },
         text = { Column {
-            Text("A name and a tone. That's all you need to start.")
+            Text("Give the chat a name and choose its starting persona.")
             Spacer(Modifier.height(16.dp))
             RepliLabel("Chat name", 13, RepliStyle.muted)
             Spacer(Modifier.height(6.dp))
@@ -195,27 +206,28 @@ private fun AddChatDialog(context: Context, repository: ProfileRepository,
                 isError = error != null, supportingText = error?.let { message -> { Text(message) } },
                 modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
             Spacer(Modifier.height(20.dp))
-            RepliLabel("How should replies feel?", 14, RepliStyle.ink, bold = true)
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
-                VoiceStyle.entries.forEach { choice ->
+            RepliLabel("Persona", 14, RepliStyle.ink, bold = true)
+            Column(Modifier.heightIn(max = 210.dp).verticalScroll(rememberScrollState())) {
+                personas.forEach { choice ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = style == choice, onClick = { style = choice })
-                        RepliLabel(choice.displayName, 13, RepliStyle.ink)
+                        RadioButton(selected = personaId == choice.id, onClick = { personaId = choice.id })
+                        RepliLabel(choice.name, 13, RepliStyle.ink)
                     }
                 }
             }
-            RepliLabel("Only saved on this device. You can change the tone later.", 12,
+            RepliLabel("Only saved on this device. You can change the persona later.", 12,
                 RepliStyle.muted)
         } },
         confirmButton = { TextButton(onClick = {
             val normalized = name.trim()
             error = when {
                 normalized.isEmpty() -> "Enter a chat name"
-                repository.findByName(normalized) != null -> "This chat is already saved. Change its tone from Chats."
+                repository.findByName(normalized) != null -> "This chat is already saved. Change its persona from Chats."
                 else -> null
             }
             if (error == null) {
-                repository.add(normalized, "Saved chat", style)
+                val selected = personas.first { it.id == personaId }
+                repository.updatePersona(repository.add(normalized, "Saved chat", selected.baseStyle).id, selected)
                 onSaved()
             }
         }) { Text("Save chat") } },

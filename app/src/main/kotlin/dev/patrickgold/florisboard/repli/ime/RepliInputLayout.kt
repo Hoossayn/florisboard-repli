@@ -57,7 +57,6 @@ import dev.patrickgold.florisboard.ime.ImeUiMode
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
 import dev.patrickgold.florisboard.ime.keyboard3.LocalImeController
 import dev.patrickgold.florisboard.repli.capture.ConversationTurn
-import dev.patrickgold.florisboard.repli.profile.VoiceStyle
 import dev.patrickgold.florisboard.repli.voice.VoicePhase
 import dev.patrickgold.florisboard.repli.voice.VoiceRecordingState
 import org.florisboard.lib.compose.stringRes
@@ -136,11 +135,11 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             border = BorderStroke(1.dp, Line),
         ) {
             Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Chat tone", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                Text("Persona", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text("${ui.selectedProfileName ?: "This reply"} · ${ui.selectedTone.displayName}", color = Ink, fontSize = 12.sp,
+                Text("${ui.selectedProfileName ?: "This reply"} · ${ui.selectedPersonaName}", color = Ink, fontSize = 12.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Icon(Icons.Default.ExpandMore, contentDescription = "Choose chat tone", tint = Accent,
+                Icon(Icons.Default.ExpandMore, contentDescription = "Choose persona", tint = Accent,
                     modifier = Modifier.size(19.dp))
             }
         }
@@ -178,12 +177,13 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
             if (ui.showChatPicker) {
-                TonePicker(
+                PersonaPicker(
                     options = ui.chatOptions,
+                    personas = ui.personaOptions,
                     selectedName = ui.selectedProfileName,
-                    selectedTone = ui.selectedTone,
+                    selectedPersonaId = ui.selectedPersonaId,
                     onSelect = orchestrator::selectChat,
-                    onToneSelect = orchestrator::selectTone,
+                    onPersonaSelect = orchestrator::selectPersona,
                 )
             } else {
                 ui.confirm?.let { confirm ->
@@ -282,39 +282,41 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TonePicker(
+private fun PersonaPicker(
     options: List<ChatOption>,
+    personas: List<PersonaOption>,
     selectedName: String?,
-    selectedTone: VoiceStyle,
+    selectedPersonaId: String,
     onSelect: (String?) -> Unit,
-    onToneSelect: (VoiceStyle) -> Unit,
+    onPersonaSelect: (String) -> Unit,
 ) {
-    Text("Tone for ${selectedName ?: "this reply"}", color = Ink, fontSize = 16.sp,
+    Text("Persona for ${selectedName ?: "this reply"}", color = Ink, fontSize = 16.sp,
         fontWeight = FontWeight.Bold)
-    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        VoiceStyle.entries.forEach { tone ->
+    personas.forEach { persona ->
             Surface(
-                modifier = Modifier.weight(1f).clickable { onToneSelect(tone) },
+                modifier = Modifier.fillMaxWidth().clickable { onPersonaSelect(persona.id) },
                 shape = CardShape,
-                color = if (tone == selectedTone) AccentSoft else Card,
-                border = BorderStroke(1.dp, if (tone == selectedTone) Accent else Line),
+                color = if (persona.id == selectedPersonaId) AccentSoft else Card,
+                border = BorderStroke(1.dp, if (persona.id == selectedPersonaId) Accent else Line),
             ) {
-                Text(tone.displayName, modifier = Modifier.padding(vertical = 10.dp),
-                    color = Ink, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+                Column(Modifier.padding(horizontal = 12.dp, vertical = 9.dp)) {
+                    Text(persona.name, color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold)
+                    Text(persona.description, color = Muted, fontSize = 11.sp, maxLines = 2,
+                        overflow = TextOverflow.Ellipsis)
+                }
             }
-        }
     }
     Text(if (selectedName == null) "Applies to this reply only."
-        else "Saved as this chat's tone for future replies.", color = Muted, fontSize = 11.sp)
+        else "Saved as this chat's persona for future replies.", color = Muted, fontSize = 11.sp)
     Text("Chat", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-    ToneOption("This reply", "Use a tone without saving a chat", selectedName == null) { onSelect(null) }
+    PersonaChatOption("This reply", "Choose a persona for one reply", selectedName == null) { onSelect(null) }
     options.forEach { option ->
-        ToneOption(option.name, option.styleName, option.name == selectedName) { onSelect(option.id) }
+        PersonaChatOption(option.name, option.styleName, option.name == selectedName) { onSelect(option.id) }
     }
 }
 
 @Composable
-private fun ToneOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
+private fun PersonaChatOption(title: String, subtitle: String, selected: Boolean, onClick: () -> Unit) {
     Surface(
         modifier = Modifier.fillMaxWidth().clickable(onClick = onClick),
         shape = CardShape,
@@ -394,7 +396,7 @@ private fun ApprovalBody(
     status: String,
 ) {
     Text("Review before cloud generation", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    Text("${approval.turnCount} messages · ${approval.stylePreset} tone · ${approval.exampleCount} examples",
+    Text("${approval.turnCount} messages · ${approval.stylePreset} persona · ${approval.exampleCount} examples",
         color = Muted, fontSize = 12.sp)
     Text("Saved chats may add earlier approved messages and writing style to cloud replies.",
         color = Muted, fontSize = 11.sp)
@@ -565,8 +567,8 @@ fun RepliInlineToneBar(modifier: Modifier = Modifier) {
         Row(Modifier.padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
             Row(Modifier.weight(1f).clickable { controller.openChatPicker() },
                 verticalAlignment = Alignment.CenterVertically) {
-                Text("Chat tone", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-                Text(" · ${ui.selectedProfileName ?: "Default"}", color = Muted, fontSize = 11.sp,
+                Text("Persona", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text(" · ${ui.selectedPersonaName}", color = Muted, fontSize = 11.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
             TextButton(onClick = controller::openGuidance,

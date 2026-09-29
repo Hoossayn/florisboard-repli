@@ -4,6 +4,7 @@ import dev.patrickgold.florisboard.repli.capture.ConversationTurn
 import dev.patrickgold.florisboard.repli.profile.LearnedStyleSnapshot
 import dev.patrickgold.florisboard.repli.profile.LearnedTextingStyle
 import dev.patrickgold.florisboard.repli.profile.VoiceStyle
+import dev.patrickgold.florisboard.repli.persona.Persona
 import kotlin.math.abs
 
 enum class ReplyOrigin { REMOTE, ON_DEVICE, ON_DEVICE_FALLBACK }
@@ -22,6 +23,9 @@ data class SharedReplyStyle(
     val preset: String,
     val summary: String?,
     val examples: List<String>,
+    val personaName: String? = null,
+    val personaDescription: String? = null,
+    val personaExamples: List<String> = emptyList(),
 )
 
 /** The bounded payload prepared after the user confirms the reviewed context. */
@@ -51,6 +55,7 @@ object RemoteReplyPrivacyPolicy {
         compactLearnedStyle: LearnedTextingStyle? = learnedSnapshot?.style,
         instructions: String? = null,
         profileId: String? = null,
+        persona: Persona? = null,
     ): PreparedRemoteReplyRequest {
         val context = turns
             .mapNotNull { turn ->
@@ -67,6 +72,9 @@ object RemoteReplyPrivacyPolicy {
                 preset = (fallbackStyle ?: VoiceStyle.CASUAL).name.lowercase(),
                 summary = compactLearnedStyle?.summary(),
                 examples = examples,
+                personaName = persona?.name,
+                personaDescription = persona?.description,
+                personaExamples = persona?.examples.orEmpty(),
             ),
             instructions = prepareInstructions(instructions),
             profileId = profileId,

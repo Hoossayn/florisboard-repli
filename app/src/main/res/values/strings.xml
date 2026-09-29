@@ -27,7 +27,7 @@
     <string name="repli_chats__add_action">Save chat</string>
     <string name="repli_chats__manage_title">Manage</string>
     <string name="repli_chats__remove_title">Remove {name}</string>
-    <string name="repli_chats__hint">Tap a saved chat to cycle its tone (Casual → Warm → Direct). Saving needs only a name and a tone. Notification senders are never trusted until you confirm them.</string>
+    <string name="repli_chats__hint">Choose a persona for each saved chat, or create your own. Notification senders are never trusted until you confirm them.</string>
     <string name="repli_chats__learn_title">Learn from visible messages</string>
     <string name="repli_chats__learn_summary">Capture your side of a chat while scrolling, then approve which messages to learn from.</string>
     <string name="repli_replies__title">Repli replies</string>
@@ -65,7 +65,7 @@
     <string name="repli_panel__apply">Apply</string>
     <string name="repli_panel__clear_field">Clear text</string>
     <string name="repli_panel__approval_title">Generate cloud replies?</string>
-    <string name="repli_panel__approval_summary" comment="{count} turns, {style} tone preset, {examples} writing examples">Exact payload: {count} messages · {style} tone · {examples} examples. Shown in full before anything is sent.</string>
+    <string name="repli_panel__approval_summary" comment="{count} turns, {style} persona, {examples} writing examples">Exact payload: {count} messages · {style} persona · {examples} examples. Shown in full before anything is sent.</string>
     <string name="repli_panel__generate">Generate replies</string>
     <string name="repli_voice__mic">Speak direction</string>
     <string name="repli_voice__pause">Pause</string>
@@ -114,7 +114,7 @@
     <string name="repli_learn__ready_summary">Learned from {count} of your outgoing messages.\n\n{summary}\n\nThe selected examples are encrypted on this device.</string>
     <string name="repli_learn__profile_gone">The profile for this scrolling session no longer exists.</string>
     <string name="repli_panel__for_chat">For: {name}</string>
-    <string name="repli_panel__choose_chat">Chat tone</string>
+    <string name="repli_panel__choose_chat">Persona</string>
     <string name="repli_panel__choose">Choose</string>
     <string name="repli_panel__full_screen">Full screen</string>
     <string name="repli_nav__home">Home</string>
@@ -134,8 +134,8 @@
     <string name="repli_home__flow_title">From chat to reply</string>
     <string name="repli_home__flow_body">Suggest replies from the keyboard in any chat. Confirm a sender or capture the visible view — review the context, then insert. Nothing is ever sent automatically.</string>
     <string name="repli_home__flow_action">Reply options</string>
-    <string name="repli_home__tone_title">A different tone for every chat</string>
-    <string name="repli_home__tone_body">Save a chat from the keyboard, or give it a name and a tone here. No history import needed.</string>
+    <string name="repli_home__tone_title">A persona for every conversation</string>
+    <string name="repli_home__tone_body">Choose a named persona or create one with your own response guide and examples.</string>
     <string name="repli_home__tone_action">Manage your chats</string>
 
     <string name="key_popup__threedots_alt" comment="Content description for the three-dots icon in a key popup">Three-dot icon. If visible, indicates that more letters can be used if longer pressed.</string>

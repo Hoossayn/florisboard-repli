@@ -5,6 +5,7 @@ data class VoiceProfile(
     val name: String,
     val relationship: String,
     val style: VoiceStyle,
+    val personaId: String = style.name.lowercase(),
 )
 
 enum class VoiceStyle(val displayName: String) {

@@ -1,6 +1,7 @@
 package dev.patrickgold.florisboard.repli.data
 
 import android.content.Context
+import dev.patrickgold.florisboard.repli.persona.Persona
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
 import dev.patrickgold.florisboard.repli.profile.VoiceStyle
 import java.util.UUID
@@ -39,6 +40,14 @@ class ProfileRepository(context: Context) {
     fun updateStyle(id: String, style: VoiceStyle): VoiceProfile? {
         val current = profiles()
         val updated = current.firstOrNull { it.id == id }?.copy(style = style) ?: return null
+        save(current.map { if (it.id == id) updated else it })
+        return updated
+    }
+
+    fun updatePersona(id: String, persona: Persona): VoiceProfile? {
+        val current = profiles()
+        val updated = current.firstOrNull { it.id == id }
+            ?.copy(style = persona.baseStyle, personaId = persona.id) ?: return null
         save(current.map { if (it.id == id) updated else it })
         return updated
     }

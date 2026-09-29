@@ -93,9 +93,9 @@ fun RepliHomeScreen() {
 
         Spacer(Modifier.height(16.dp))
         RepliCard {
-            RepliLabel("A different tone for every chat", 17, RepliStyle.ink, bold = true)
+            RepliLabel("A persona for every conversation", 17, RepliStyle.ink, bold = true)
             Spacer(Modifier.height(8.dp))
-            RepliLabel("Save a chat from the keyboard, or give it a name and a tone here. No history import needed.",
+            RepliLabel("Choose from playful presets or create your own persona with a response guide and example replies.",
                 14, RepliStyle.muted)
             Spacer(Modifier.height(14.dp))
             RepliAction("Manage your chats", {

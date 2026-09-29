@@ -40,6 +40,9 @@ import dev.patrickgold.florisboard.repli.profile.ProfileMatcher
 import dev.patrickgold.florisboard.repli.profile.RecentMessage
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
 import dev.patrickgold.florisboard.repli.profile.VoiceStyle
+import dev.patrickgold.florisboard.repli.persona.BuiltInPersonas
+import dev.patrickgold.florisboard.repli.persona.Persona
+import dev.patrickgold.florisboard.repli.persona.PersonaRepository
 import dev.patrickgold.florisboard.repli.suggestions.PreparedRemoteReplyRequest
 import dev.patrickgold.florisboard.repli.suggestions.RemoteReplyPrivacyPolicy
 import dev.patrickgold.florisboard.repli.suggestions.RepliAccountSessionProvider
@@ -83,6 +86,7 @@ data class RepliApprovalCard(
 )
 
 data class ChatOption(val id: String, val name: String, val styleName: String)
+data class PersonaOption(val id: String, val name: String, val description: String)
 
 data class RepliReplyUiState(
     val active: Boolean = false,
@@ -104,8 +108,10 @@ data class RepliReplyUiState(
     val guidanceText: String = "",
     val showChatPicker: Boolean = false,
     val chatOptions: List<ChatOption> = emptyList(),
+    val personaOptions: List<PersonaOption> = emptyList(),
     val selectedProfileName: String? = null,
-    val selectedTone: VoiceStyle = VoiceStyle.CASUAL,
+    val selectedPersonaId: String = "casual",
+    val selectedPersonaName: String = "Easy Breezy",
     val voice: VoiceRecordingState? = null,
     val voicePreview: String = "",
     val voiceAccepted: String? = null,
@@ -145,11 +151,12 @@ class RepliReplyOrchestrator(
     private var editor: ReplyEditor? = null
     private var sensitive = true
     private var profiles: List<VoiceProfile> = emptyList()
+    private var personas: List<Persona> = BuiltInPersonas.all
     private var recentMessages: List<RecentMessage> = emptyList()
     private var resolution: ConversationIdentityResolution = ConversationIdentityResolution.None
     private var suggestion: ConversationIdentityResolution.Suggestion? = null
     private var selectedProfileId: String? = null
-    private var defaultTone = VoiceStyle.CASUAL
+    private var defaultPersonaId = "casual"
     private var confirmedIdentity: ConfirmedConversationIdentity? = null
     private var contextLoadGeneration = 0
     private var pendingRemoteRequest: PreparedRemoteReplyRequest? = null
@@ -233,7 +240,7 @@ class RepliReplyOrchestrator(
         editor = incoming
         sensitive = nowSensitive
         selectedProfileId = null
-        defaultTone = VoiceStyle.CASUAL
+        defaultPersonaId = "casual"
         confirmedIdentity = null
         if (nowSensitive) {
             profiles = emptyList()
@@ -251,10 +258,12 @@ class RepliReplyOrchestrator(
         val generation = ++contextLoadGeneration
         scope.launch(Dispatchers.IO) {
             val loadedProfiles = ProfileRepository(appContext).profiles()
+            val loadedPersonas = PersonaRepository(appContext).personas()
             val recent = RecentMessageRepository(appContext).recentFor(packageName)
             withContext(Dispatchers.Main) {
                 if (generation != contextLoadGeneration) return@withContext
                 profiles = loadedProfiles
+                personas = loadedPersonas
                 recentMessages = recent
                 if (selectedProfileId != null && loadedProfiles.none { it.id == selectedProfileId }) {
                     selectedProfileId = null
@@ -458,27 +467,28 @@ class RepliReplyOrchestrator(
         }
         selectedProfileId = id
         confirmedIdentity = null
-        invalidateRepliesForToneChange()
+        invalidateRepliesForPersonaChange()
         publish()
     }
 
-    fun selectTone(tone: VoiceStyle) {
+    fun selectPersona(id: String) {
         if (ReplyCaptureSession.state.value?.busy == true) return
+        val persona = personas.firstOrNull { it.id == id } ?: return
         val profile = selectedProfile()
         if (profile == null) {
-            if (defaultTone == tone) return
-            defaultTone = tone
+            if (defaultPersonaId == id) return
+            defaultPersonaId = id
         } else {
-            if (profile.style == tone) return
+            if (profile.personaId == id) return
             val repository = ProfileRepository(appContext)
-            if (repository.updateStyle(profile.id, tone) == null) return
+            if (repository.updatePersona(profile.id, persona) == null) return
             profiles = repository.profiles()
         }
-        invalidateRepliesForToneChange()
+        invalidateRepliesForPersonaChange()
         publish()
     }
 
-    private fun invalidateRepliesForToneChange() {
+    private fun invalidateRepliesForPersonaChange() {
         lastApprovedRequest = null
         pendingRemoteRequest = null
         pendingMore = false
@@ -489,7 +499,7 @@ class RepliReplyOrchestrator(
         reviewingTurns = current.turns.toMutableList()
         ReplyCaptureSession.update(current.id) {
             it.copy(phase = ReplyPhase.REVIEW, replies = emptyList(), generationError = null,
-                message = "Chat tone changed · review before generating")
+                message = "Persona changed · review before generating")
         }
     }
 
@@ -775,9 +785,10 @@ class RepliReplyOrchestrator(
             val profile = selectedProfile()
             val snapshot = profile?.let { LearnedStyleRepository(appContext).get(it.id) }
             val current = ReplyCaptureSession.state.value ?: return@launch
+            val persona = selectedPersona()
             val fresh = RemoteReplyPrivacyPolicy.prepare(
-                current.turns, profile?.style ?: defaultTone, snapshot, instructions = current.instructions,
-                profileId = profile?.id,
+                current.turns, persona.baseStyle, snapshot, instructions = current.instructions,
+                profileId = profile?.id, persona = persona,
             )
             if (fresh != displayed) return@launch
             withContext(Dispatchers.Main) {
@@ -797,7 +808,7 @@ class RepliReplyOrchestrator(
             ReplyCaptureSession.update(state.id) { it.copy(turns = turns) }
             FullScreenContextReviewActivity.intent(
                 appContext, state.id, turns, state.instructions,
-                (selectedProfile()?.style ?: defaultTone).displayName,
+                selectedPersona().name,
             )
         } else {
             val request = pendingRemoteRequest ?: return
@@ -999,9 +1010,10 @@ class RepliReplyOrchestrator(
             try {
                 val profile = selectedProfile()
                 val snapshot = profile?.let { LearnedStyleRepository(appContext).get(it.id) }
+                val persona = selectedPersona()
                 val prepared = RemoteReplyPrivacyPolicy.prepare(
-                    state.turns, profile?.style ?: defaultTone, snapshot, instructions = state.instructions,
-                    profileId = profile?.id,
+                    state.turns, persona.baseStyle, snapshot, instructions = state.instructions,
+                    profileId = profile?.id, persona = persona,
                 )
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
@@ -1118,6 +1130,11 @@ class RepliReplyOrchestrator(
     private fun selectedProfile(): VoiceProfile? =
         profiles.firstOrNull { it.id == selectedProfileId }
 
+    private fun selectedPersona(): Persona {
+        val id = selectedProfile()?.personaId ?: defaultPersonaId
+        return PersonaRepository(appContext).get(id) ?: BuiltInPersonas.all.first()
+    }
+
     private fun remoteEnabled(): Boolean =
         RemoteGenerationPreferences(appContext).enabled &&
             (RepliAccountSessionRepository.bearerToken() != null ||
@@ -1160,8 +1177,8 @@ class RepliReplyOrchestrator(
             RepliApprovalCard(
                 turnCount = it.context.size,
                 instructions = it.instructions,
-                stylePreset = it.style.preset,
-                exampleCount = it.style.examples.size,
+                stylePreset = it.style.personaName ?: it.style.preset,
+                exampleCount = it.style.examples.size + it.style.personaExamples.size,
             )
         }
         val confirm = suggestion?.takeIf { session == null || !session.busy }?.let {
@@ -1170,7 +1187,7 @@ class RepliReplyOrchestrator(
             if (existing == null) {
                 RepliConfirmChip(
                     label = "Save $candidate?",
-                    description = "Confirm this chat is with ${it.message.sender}, save its tone, and use its recent message",
+                    description = "Confirm this chat is with ${it.message.sender}, save its persona, and use its recent message",
                 )
             } else {
                 RepliConfirmChip(
@@ -1205,9 +1222,14 @@ class RepliReplyOrchestrator(
             guidanceOpen = guidanceOpen,
             guidanceText = if (guidanceOpen) guidanceDraftText else "",
             showChatPicker = current.showChatPicker,
-            chatOptions = profiles.map { ChatOption(it.id, it.name, it.style.displayName) },
+            chatOptions = profiles.map { ChatOption(it.id, it.name,
+                personas.firstOrNull { persona -> persona.id == it.personaId }?.name ?: "Easy Breezy") },
+            personaOptions = personas.map { PersonaOption(it.id, it.name, it.description) },
             selectedProfileName = selectedProfile()?.name,
-            selectedTone = selectedProfile()?.style ?: defaultTone,
+            selectedPersonaId = selectedProfile()?.personaId ?: defaultPersonaId,
+            selectedPersonaName = personas.firstOrNull {
+                it.id == (selectedProfile()?.personaId ?: defaultPersonaId)
+            }?.name ?: "Easy Breezy",
             voice = voiceState,
             voicePreview = voiceState?.partial?.let { VoiceGuidanceText.combine(voiceBase, it) } ?: "",
             voiceAccepted = voiceAccepted,

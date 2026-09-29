@@ -105,6 +105,7 @@ data class RepliReplyUiState(
     val showChatPicker: Boolean = false,
     val chatOptions: List<ChatOption> = emptyList(),
     val selectedProfileName: String? = null,
+    val selectedTone: VoiceStyle = VoiceStyle.CASUAL,
     val voice: VoiceRecordingState? = null,
     val voicePreview: String = "",
     val voiceAccepted: String? = null,
@@ -148,6 +149,7 @@ class RepliReplyOrchestrator(
     private var resolution: ConversationIdentityResolution = ConversationIdentityResolution.None
     private var suggestion: ConversationIdentityResolution.Suggestion? = null
     private var selectedProfileId: String? = null
+    private var defaultTone = VoiceStyle.CASUAL
     private var confirmedIdentity: ConfirmedConversationIdentity? = null
     private var contextLoadGeneration = 0
     private var pendingRemoteRequest: PreparedRemoteReplyRequest? = null
@@ -231,6 +233,7 @@ class RepliReplyOrchestrator(
         editor = incoming
         sensitive = nowSensitive
         selectedProfileId = null
+        defaultTone = VoiceStyle.CASUAL
         confirmedIdentity = null
         if (nowSensitive) {
             profiles = emptyList()
@@ -436,6 +439,7 @@ class RepliReplyOrchestrator(
     // Manual chat picker
 
     fun openChatPicker() {
+        if (ReplyCaptureSession.state.value?.busy == true) return
         update { it.copy(active = true, showChatPicker = true) }
         showRepliesPanel()
     }
@@ -446,25 +450,47 @@ class RepliReplyOrchestrator(
     }
 
     fun selectChat(id: String?) {
+        if (ReplyCaptureSession.state.value?.busy == true) return
         if (id != null && profiles.none { it.id == id }) return
-        update { it.copy(showChatPicker = false) }
         if (id == selectedProfileId) {
             publish()
             return
         }
         selectedProfileId = id
         confirmedIdentity = null
-        lastApprovedRequest = null
-        val current = ReplyCaptureSession.state.value
-        if (current != null && current.turns.isNotEmpty() && !current.busy &&
-            current.phase in setOf(ReplyPhase.APPROVAL, ReplyPhase.READY)) {
-            pendingRemoteRequest = null
-            ReplyCaptureSession.update(current.id) {
-                it.copy(phase = ReplyPhase.REVIEW, replies = emptyList(),
-                    message = "Chat tone changed · review before generating")
-            }
-        }
+        invalidateRepliesForToneChange()
         publish()
+    }
+
+    fun selectTone(tone: VoiceStyle) {
+        if (ReplyCaptureSession.state.value?.busy == true) return
+        val profile = selectedProfile()
+        if (profile == null) {
+            if (defaultTone == tone) return
+            defaultTone = tone
+        } else {
+            if (profile.style == tone) return
+            val repository = ProfileRepository(appContext)
+            if (repository.updateStyle(profile.id, tone) == null) return
+            profiles = repository.profiles()
+        }
+        invalidateRepliesForToneChange()
+        publish()
+    }
+
+    private fun invalidateRepliesForToneChange() {
+        lastApprovedRequest = null
+        pendingRemoteRequest = null
+        pendingMore = false
+        moreRepliesExpanded = false
+        val current = ReplyCaptureSession.state.value ?: return
+        if (current.turns.isEmpty() || current.busy ||
+            current.phase !in setOf(ReplyPhase.APPROVAL, ReplyPhase.READY)) return
+        reviewingTurns = current.turns.toMutableList()
+        ReplyCaptureSession.update(current.id) {
+            it.copy(phase = ReplyPhase.REVIEW, replies = emptyList(), generationError = null,
+                message = "Chat tone changed · review before generating")
+        }
     }
 
     // Review
@@ -750,7 +776,7 @@ class RepliReplyOrchestrator(
             val snapshot = profile?.let { LearnedStyleRepository(appContext).get(it.id) }
             val current = ReplyCaptureSession.state.value ?: return@launch
             val fresh = RemoteReplyPrivacyPolicy.prepare(
-                current.turns, profile?.style, snapshot, instructions = current.instructions,
+                current.turns, profile?.style ?: defaultTone, snapshot, instructions = current.instructions,
                 profileId = profile?.id,
             )
             if (fresh != displayed) return@launch
@@ -771,7 +797,7 @@ class RepliReplyOrchestrator(
             ReplyCaptureSession.update(state.id) { it.copy(turns = turns) }
             FullScreenContextReviewActivity.intent(
                 appContext, state.id, turns, state.instructions,
-                selectedProfile()?.style?.displayName ?: "Default",
+                (selectedProfile()?.style ?: defaultTone).displayName,
             )
         } else {
             val request = pendingRemoteRequest ?: return
@@ -974,7 +1000,7 @@ class RepliReplyOrchestrator(
                 val profile = selectedProfile()
                 val snapshot = profile?.let { LearnedStyleRepository(appContext).get(it.id) }
                 val prepared = RemoteReplyPrivacyPolicy.prepare(
-                    state.turns, profile?.style, snapshot, instructions = state.instructions,
+                    state.turns, profile?.style ?: defaultTone, snapshot, instructions = state.instructions,
                     profileId = profile?.id,
                 )
                 withContext(Dispatchers.Main) {
@@ -1181,6 +1207,7 @@ class RepliReplyOrchestrator(
             showChatPicker = current.showChatPicker,
             chatOptions = profiles.map { ChatOption(it.id, it.name, it.style.displayName) },
             selectedProfileName = selectedProfile()?.name,
+            selectedTone = selectedProfile()?.style ?: defaultTone,
             voice = voiceState,
             voicePreview = voiceState?.partial?.let { VoiceGuidanceText.combine(voiceBase, it) } ?: "",
             voiceAccepted = voiceAccepted,

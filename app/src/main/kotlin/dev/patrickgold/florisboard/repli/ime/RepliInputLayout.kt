@@ -57,6 +57,7 @@ import dev.patrickgold.florisboard.ime.ImeUiMode
 import dev.patrickgold.florisboard.ime.keyboard.FlorisImeSizing
 import dev.patrickgold.florisboard.ime.keyboard3.LocalImeController
 import dev.patrickgold.florisboard.repli.capture.ConversationTurn
+import dev.patrickgold.florisboard.repli.profile.VoiceStyle
 import dev.patrickgold.florisboard.repli.voice.VoicePhase
 import dev.patrickgold.florisboard.repli.voice.VoiceRecordingState
 import org.florisboard.lib.compose.stringRes
@@ -127,7 +128,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
         }
         Surface(
             modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(42.dp)
-                .clickable {
+                .clickable(enabled = !ui.busy) {
                     if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
                 },
             shape = RoundedCornerShape(15.dp),
@@ -137,7 +138,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
                 Text("Chat tone", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
                 Spacer(Modifier.weight(1f))
-                Text(ui.selectedProfileName ?: "Default", color = Ink, fontSize = 12.sp,
+                Text("${ui.selectedProfileName ?: "This reply"} · ${ui.selectedTone.displayName}", color = Ink, fontSize = 12.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
                 Icon(Icons.Default.ExpandMore, contentDescription = "Choose chat tone", tint = Accent,
                     modifier = Modifier.size(19.dp))
@@ -180,7 +181,9 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                 TonePicker(
                     options = ui.chatOptions,
                     selectedName = ui.selectedProfileName,
+                    selectedTone = ui.selectedTone,
                     onSelect = orchestrator::selectChat,
+                    onToneSelect = orchestrator::selectTone,
                 )
             } else {
                 ui.confirm?.let { confirm ->
@@ -279,14 +282,34 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
 }
 
 @Composable
-private fun TonePicker(options: List<ChatOption>, selectedName: String?, onSelect: (String?) -> Unit) {
-    Text("Choose a chat tone", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
-    ToneOption("Default tone", "No saved writing style", selectedName == null) { onSelect(null) }
+private fun TonePicker(
+    options: List<ChatOption>,
+    selectedName: String?,
+    selectedTone: VoiceStyle,
+    onSelect: (String?) -> Unit,
+    onToneSelect: (VoiceStyle) -> Unit,
+) {
+    Text("Tone for ${selectedName ?: "this reply"}", color = Ink, fontSize = 16.sp,
+        fontWeight = FontWeight.Bold)
+    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+        VoiceStyle.entries.forEach { tone ->
+            Surface(
+                modifier = Modifier.weight(1f).clickable { onToneSelect(tone) },
+                shape = CardShape,
+                color = if (tone == selectedTone) AccentSoft else Card,
+                border = BorderStroke(1.dp, if (tone == selectedTone) Accent else Line),
+            ) {
+                Text(tone.displayName, modifier = Modifier.padding(vertical = 10.dp),
+                    color = Ink, fontSize = 12.sp, textAlign = androidx.compose.ui.text.style.TextAlign.Center)
+            }
+        }
+    }
+    Text(if (selectedName == null) "Applies to this reply only."
+        else "Saved as this chat's tone for future replies.", color = Muted, fontSize = 11.sp)
+    Text("Chat", color = Ink, fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
+    ToneOption("This reply", "Use a tone without saving a chat", selectedName == null) { onSelect(null) }
     options.forEach { option ->
         ToneOption(option.name, option.styleName, option.name == selectedName) { onSelect(option.id) }
-    }
-    if (options.isEmpty()) {
-        Text("Save a chat in Repli Chats to use its writing style here.", color = Muted, fontSize = 12.sp)
     }
 }
 

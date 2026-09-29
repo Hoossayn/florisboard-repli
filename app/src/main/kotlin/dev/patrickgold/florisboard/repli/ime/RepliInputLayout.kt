@@ -529,13 +529,23 @@ fun RepliInlineToneBar(modifier: Modifier = Modifier) {
     val controller = LocalImeController.current.repliReply ?: return
     val ui by controller.uiState.collectAsState()
     Surface(modifier = modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 5.dp)
-        .height(42.dp).clickable { controller.openChatPicker() },
+        .height(42.dp),
         color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
-        Row(Modifier.padding(horizontal = 12.dp), verticalAlignment = Alignment.CenterVertically) {
-            Text("Chat tone", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
-            Spacer(Modifier.weight(1f))
-            Text(ui.status.ifBlank { "Cloud replies · tap to insert, then edit" },
-                color = Muted, fontSize = 11.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Row(Modifier.padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+            Row(Modifier.weight(1f).clickable { controller.openChatPicker() },
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("Chat tone", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
+                Text(" · ${ui.selectedProfileName ?: "Default"}", color = Muted, fontSize = 11.sp,
+                    maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+            TextButton(onClick = controller::openGuidance,
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
+                Text("Guide", color = Accent, fontSize = 11.sp)
+            }
+            TextButton(onClick = controller::clear,
+                contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
+                Text("Clear", color = Muted, fontSize = 11.sp)
+            }
         }
     }
 }
@@ -544,8 +554,8 @@ fun RepliInlineToneBar(modifier: Modifier = Modifier) {
 fun RepliInlineSuggestionRow(modifier: Modifier = Modifier) {
     val controller = LocalImeController.current.repliReply ?: return
     val ui by controller.uiState.collectAsState()
-    val firstThree = ui.suggestions.take(3)
-    if (firstThree.isEmpty()) return
+    val visibleReplies = ui.suggestions.takeLast(3)
+    if (visibleReplies.isEmpty()) return
     val replyWidth = minOf(LocalConfiguration.current.screenWidthDp.dp * 0.72f, 300.dp)
     LazyRow(
         modifier = modifier.fillMaxWidth().height(54.dp).background(Paper),
@@ -553,7 +563,7 @@ fun RepliInlineSuggestionRow(modifier: Modifier = Modifier) {
         horizontalArrangement = Arrangement.spacedBy(7.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        items(firstThree) { suggestion ->
+        items(visibleReplies) { suggestion ->
             Surface(modifier = Modifier.width(replyWidth).height(44.dp)
                 .clickable { controller.insertSuggestion(suggestion) },
                 color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
@@ -590,9 +600,16 @@ fun RepliInlineGuidance(modifier: Modifier = Modifier) {
             Text("Say what you want changed, or generate another set", color = Muted, fontSize = 11.sp)
             Box(Modifier.fillMaxWidth().height(62.dp).background(Paper, RoundedCornerShape(10.dp))
                 .padding(10.dp), contentAlignment = Alignment.TopStart) {
-                Text(if (ui.guidanceText.isEmpty()) "e.g. Shorter, warmer, or suggest next week"
-                     else ui.guidanceText + "▍", color = if (ui.guidanceText.isEmpty()) Muted else Ink,
-                     fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                if (ui.guidanceText.isEmpty()) {
+                    Row(verticalAlignment = Alignment.Top) {
+                        Text("▍", color = Accent, fontSize = 13.sp)
+                        Text("e.g. Shorter, warmer, or suggest next week", color = Muted,
+                            fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                    }
+                } else {
+                    Text(ui.guidanceText + "▍", color = Ink,
+                        fontSize = 13.sp, maxLines = 3, overflow = TextOverflow.Ellipsis)
+                }
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 SmallAction("Clear", controller::clearGuidanceText)

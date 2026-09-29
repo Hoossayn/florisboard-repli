@@ -26,7 +26,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.navigation.NavController
 import androidx.navigation.NavDestination.Companion.hasRoute
-import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.currentBackStackEntryAsState
 import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.Routes
@@ -52,10 +51,16 @@ fun RepliBottomNav(navController: NavController) {
                 val tint = if (selected) RepliStyle.accent else RepliStyle.muted
                 Column(
                     Modifier.weight(1f).height(64.dp).clickable {
-                        navController.navigate(tab.route) {
-                            popUpTo(navController.graph.findStartDestination().id) { saveState = true }
-                            launchSingleTop = true
-                            restoreState = true
+                        if (!selected) {
+                            val returnedHome = navController.popBackStack(Routes.Settings.RepliHome, false)
+                            if (index != 0 || !returnedHome) {
+                                navController.navigate(tab.route) {
+                                    launchSingleTop = true
+                                    if (index == 0) {
+                                        popUpTo(navController.graph.id)
+                                    }
+                                }
+                            }
                         }
                     },
                     horizontalAlignment = Alignment.CenterHorizontally,

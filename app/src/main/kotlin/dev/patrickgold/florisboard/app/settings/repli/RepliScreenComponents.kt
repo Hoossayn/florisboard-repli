@@ -5,13 +5,17 @@ import android.os.Build
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.rememberScrollState
@@ -19,15 +23,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.interaction.collectIsFocusedAsState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
@@ -122,4 +134,51 @@ internal fun RepliAction(label: String, onClick: () -> Unit, filled: Boolean = t
 internal fun RepliSection(title: String, modifier: Modifier = Modifier) {
     RepliLabel(title, 19, RepliStyle.ink, bold = true, modifier = modifier)
     Spacer(Modifier.height(10.dp))
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+internal fun RepliSheet(onDismiss: () -> Unit, content: @Composable ColumnScope.() -> Unit) {
+    ModalBottomSheet(onDismissRequest = onDismiss, containerColor = RepliStyle.card,
+        contentColor = RepliStyle.ink, shape = RoundedCornerShape(topStart = 28.dp, topEnd = 28.dp)) {
+        Column(Modifier.fillMaxWidth().imePadding().padding(horizontal = 22.dp), content = content)
+    }
+}
+
+@Composable
+internal fun RepliInput(value: String, onValueChange: (String) -> Unit, label: String,
+    placeholder: String, modifier: Modifier = Modifier, singleLine: Boolean = false,
+    minLines: Int = 1, maxLines: Int = Int.MAX_VALUE, maxLength: Int? = null,
+    error: String? = null) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val focused by interactionSource.collectIsFocusedAsState()
+    val accent = RepliStyle.accent
+    val ink = RepliStyle.ink
+    val muted = RepliStyle.muted
+    Column(modifier) {
+        RepliLabel(label, 13, if (focused) accent else muted, bold = true)
+        Spacer(Modifier.height(7.dp))
+        Surface(shape = RoundedCornerShape(18.dp), color = RepliStyle.accentSoft,
+            border = BorderStroke(if (focused || error != null) 2.dp else 1.dp,
+                if (error != null) Color(0xFFB54161) else if (focused) accent else RepliStyle.line)) {
+            BasicTextField(value = value, onValueChange = { changed ->
+                if (maxLength == null || changed.length <= maxLength) onValueChange(changed)
+            }, modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 15.dp),
+                singleLine = singleLine, minLines = minLines, maxLines = maxLines,
+                interactionSource = interactionSource, cursorBrush = SolidColor(accent),
+                textStyle = TextStyle(color = ink, fontSize = 16.sp, lineHeight = 22.sp),
+                decorationBox = { innerTextField ->
+                    Box {
+                        if (value.isEmpty()) Text(placeholder, color = muted, fontSize = 16.sp,
+                            lineHeight = 22.sp)
+                        innerTextField()
+                    }
+                })
+        }
+        if (error != null || maxLength != null) {
+            RepliLabel(error ?: "${value.length}/$maxLength", 12,
+                if (error != null) Color(0xFFB54161) else muted,
+                modifier = Modifier.padding(top = 5.dp, start = 4.dp))
+        }
+    }
 }

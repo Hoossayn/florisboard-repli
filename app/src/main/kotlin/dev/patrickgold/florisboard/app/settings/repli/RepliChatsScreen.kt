@@ -1,7 +1,7 @@
 package dev.patrickgold.florisboard.app.settings.repli
 
-import android.content.Context
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -13,8 +13,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.RadioButton
+import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -55,7 +55,7 @@ fun RepliChatsScreen() {
     var profiles by remember { mutableStateOf(repository.profiles()) }
     var personas by remember { mutableStateOf(personaRepository.personas()) }
     var styleRevision by remember { mutableIntStateOf(0) }
-    var addDialog by remember { mutableStateOf(false) }
+    var addSheet by remember { mutableStateOf(false) }
     var removeProfile by remember { mutableStateOf<VoiceProfile?>(null) }
     var removeError by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf(false) }
@@ -78,7 +78,7 @@ fun RepliChatsScreen() {
         Spacer(Modifier.height(6.dp))
         RepliLabel("A different persona for every conversation.", 15, RepliStyle.muted)
         Spacer(Modifier.height(20.dp))
-        RepliAction("Add a chat", { addDialog = true })
+        RepliAction("Add a chat", { addSheet = true })
         Spacer(Modifier.height(9.dp))
         RepliAction("Manage personas", { navController.navigate(Routes.Settings.RepliPersonas) }, filled = false)
         Spacer(Modifier.height(16.dp))
@@ -139,9 +139,9 @@ fun RepliChatsScreen() {
         }
     }
 
-    if (addDialog) AddChatDialog(context, repository, personas,
-        onSaved = { profiles = repository.profiles(); addDialog = false },
-        onDismiss = { addDialog = false })
+    if (addSheet) AddChatSheet(repository, personas,
+        onSaved = { profiles = repository.profiles(); addSheet = false },
+        onDismiss = { addSheet = false })
     removeProfile?.let { profile ->
         AlertDialog(onDismissRequest = { removeProfile = null },
             title = { Text("Remove ${profile.name}?") },
@@ -165,71 +165,87 @@ fun RepliChatsScreen() {
             dismissButton = { TextButton(onClick = { removeProfile = null }) { Text("Keep") } })
     }
     personaProfile?.let { profile ->
-        AlertDialog(onDismissRequest = { personaProfile = null },
-            title = { Text("Persona for ${profile.name}") },
-            text = { Column(Modifier.heightIn(max = 420.dp).verticalScroll(rememberScrollState())) {
+        RepliSheet(onDismiss = { personaProfile = null }) {
+            RepliLabel("Persona for ${profile.name}", 23, RepliStyle.ink, bold = true)
+            Spacer(Modifier.height(6.dp))
+            RepliLabel("Choose how Repli should sound in this chat.", 14, RepliStyle.muted)
+            Spacer(Modifier.height(16.dp))
+            Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
                 personas.forEach { persona ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = profile.personaId == persona.id, onClick = {
-                            repository.updatePersona(profile.id, persona)
-                            profiles = repository.profiles()
-                            personaProfile = null
-                        })
-                        Column {
-                            Text(persona.name)
-                            RepliLabel(persona.description, 12, RepliStyle.muted)
-                        }
+                    PersonaChoice(persona, profile.personaId == persona.id) {
+                        repository.updatePersona(profile.id, persona)
+                        profiles = repository.profiles()
+                        personaProfile = null
                     }
+                    Spacer(Modifier.height(8.dp))
                 }
-            } },
-            confirmButton = { TextButton(onClick = { personaProfile = null }) { Text("Cancel") } })
+            }
+            Spacer(Modifier.height(8.dp))
+            TextButton(onClick = { personaProfile = null }) { Text("Cancel", color = RepliStyle.muted) }
+            Spacer(Modifier.height(12.dp))
+        }
     }
 }
 
 @Composable
-private fun AddChatDialog(context: Context, repository: ProfileRepository, personas: List<Persona>,
+private fun AddChatSheet(repository: ProfileRepository, personas: List<Persona>,
     onSaved: () -> Unit, onDismiss: () -> Unit) {
     var name by remember { mutableStateOf("") }
     var personaId by remember { mutableStateOf("casual") }
     var error by remember { mutableStateOf<String?>(null) }
-    AlertDialog(onDismissRequest = onDismiss,
-        title = { Text("Save a chat") },
-        text = { Column {
-            Text("Give the chat a name and choose its starting persona.")
-            Spacer(Modifier.height(16.dp))
-            RepliLabel("Chat name", 13, RepliStyle.muted)
+    RepliSheet(onDismiss = onDismiss) {
+            RepliLabel("Save a chat", 23, RepliStyle.ink, bold = true)
             Spacer(Modifier.height(6.dp))
-            OutlinedTextField(value = name, onValueChange = {
-                if (it.length <= 80) name = it
-                error = null
-            }, placeholder = { Text("e.g. Alex") }, singleLine = true,
-                isError = error != null, supportingText = error?.let { message -> { Text(message) } },
-                modifier = Modifier.fillMaxWidth(), shape = RoundedCornerShape(14.dp))
-            Spacer(Modifier.height(20.dp))
-            RepliLabel("Persona", 14, RepliStyle.ink, bold = true)
+            RepliLabel("Give the chat a name and choose its starting persona.", 14, RepliStyle.muted)
+            Spacer(Modifier.height(18.dp))
+            RepliInput(name, { name = it; error = null }, "CHAT NAME", "e.g. Alex",
+                singleLine = true, maxLength = 80, error = error)
+            Spacer(Modifier.height(18.dp))
+            RepliLabel("PERSONA", 13, RepliStyle.accent, bold = true)
+            Spacer(Modifier.height(8.dp))
             Column(Modifier.heightIn(max = 210.dp).verticalScroll(rememberScrollState())) {
                 personas.forEach { choice ->
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        RadioButton(selected = personaId == choice.id, onClick = { personaId = choice.id })
-                        RepliLabel(choice.name, 13, RepliStyle.ink)
-                    }
+                    PersonaChoice(choice, personaId == choice.id) { personaId = choice.id }
+                    Spacer(Modifier.height(8.dp))
                 }
             }
-            RepliLabel("Only saved on this device. You can change the persona later.", 12,
-                RepliStyle.muted)
-        } },
-        confirmButton = { TextButton(onClick = {
-            val normalized = name.trim()
-            error = when {
-                normalized.isEmpty() -> "Enter a chat name"
-                repository.findByName(normalized) != null -> "This chat is already saved. Change its persona from Chats."
-                else -> null
+            Spacer(Modifier.height(8.dp))
+            RepliLabel("Only saved on this device. You can change the persona later.", 12, RepliStyle.muted)
+            Spacer(Modifier.height(18.dp))
+            RepliAction("Save chat", onClick = {
+                val normalized = name.trim()
+                error = when {
+                    normalized.isEmpty() -> "Enter a chat name"
+                    repository.findByName(normalized) != null -> "This chat is already saved. Change its persona from Chats."
+                    else -> null
+                }
+                if (error == null) {
+                    val selected = personas.first { it.id == personaId }
+                    repository.updatePersona(repository.add(normalized, "Saved chat", selected.baseStyle).id, selected)
+                    onSaved()
+                }
+            })
+            TextButton(onClick = onDismiss) { Text("Cancel", color = RepliStyle.muted) }
+            Spacer(Modifier.height(12.dp))
+    }
+}
+
+@Composable
+private fun PersonaChoice(persona: Persona, selected: Boolean, onClick: () -> Unit) {
+    Surface(Modifier.fillMaxWidth().clickable(onClick = onClick),
+        shape = RoundedCornerShape(18.dp),
+        color = if (selected) RepliStyle.accentSoft else RepliStyle.paper,
+        border = BorderStroke(if (selected) 2.dp else 1.dp,
+            if (selected) RepliStyle.accent else RepliStyle.line)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 10.dp),
+            verticalAlignment = Alignment.CenterVertically) {
+            Column(Modifier.weight(1f)) {
+                RepliLabel(persona.name, 16, RepliStyle.ink, bold = true)
+                Spacer(Modifier.height(3.dp))
+                RepliLabel(persona.description, 12, RepliStyle.muted)
             }
-            if (error == null) {
-                val selected = personas.first { it.id == personaId }
-                repository.updatePersona(repository.add(normalized, "Saved chat", selected.baseStyle).id, selected)
-                onSaved()
-            }
-        }) { Text("Save chat") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+            RadioButton(selected = selected, onClick = null,
+                colors = RadioButtonDefaults.colors(selectedColor = RepliStyle.accent))
+        }
+    }
 }

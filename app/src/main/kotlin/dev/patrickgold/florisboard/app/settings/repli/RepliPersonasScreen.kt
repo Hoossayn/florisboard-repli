@@ -11,7 +11,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -74,7 +73,7 @@ fun RepliPersonasScreen() {
         }
     }
     if (creating || editing != null) {
-        PersonaEditorDialog(
+        PersonaEditorSheet(
             initial = editing,
             onDismiss = { creating = false; editing = null },
             onSave = { name, description, examples ->
@@ -103,7 +102,7 @@ fun RepliPersonasScreen() {
 }
 
 @Composable
-private fun PersonaEditorDialog(initial: Persona?, onDismiss: () -> Unit,
+private fun PersonaEditorSheet(initial: Persona?, onDismiss: () -> Unit,
                                 onSave: (String, String, List<String>) -> Unit) {
     var name by remember(initial?.id) { mutableStateOf(initial?.name.orEmpty()) }
     var description by remember(initial?.id) { mutableStateOf(initial?.description.orEmpty()) }
@@ -111,34 +110,39 @@ private fun PersonaEditorDialog(initial: Persona?, onDismiss: () -> Unit,
     var example2 by remember(initial?.id) { mutableStateOf(initial?.examples?.getOrNull(1).orEmpty()) }
     var example3 by remember(initial?.id) { mutableStateOf(initial?.examples?.getOrNull(2).orEmpty()) }
     val valid = name.trim().isNotEmpty() && description.trim().isNotEmpty()
-    AlertDialog(onDismissRequest = onDismiss,
-        title = { Text(if (initial == null) "Create a persona" else "Teach ${initial.name}") },
-        text = {
-            Column(Modifier.heightIn(max = 520.dp).verticalScroll(rememberScrollState())) {
-                Text("Describe how this persona should sound. Example replies help Repli match its rhythm, emoji, and punctuation.")
-                Spacer(Modifier.height(12.dp))
-                OutlinedTextField(name, { if (it.length <= 50) name = it }, label = { Text("Fun name") },
-                    singleLine = true, modifier = Modifier.fillMaxWidth())
-                Spacer(Modifier.height(10.dp))
-                OutlinedTextField(description, { if (it.length <= 500) description = it },
-                    label = { Text("How should replies sound?") }, minLines = 3,
-                    supportingText = { Text("${description.length}/500") }, modifier = Modifier.fillMaxWidth())
+    RepliSheet(onDismiss = onDismiss) {
+            RepliLabel(if (initial == null) "Create a persona" else "Teach ${initial.name}",
+                23, RepliStyle.ink, bold = true)
+            Spacer(Modifier.height(8.dp))
+            RepliLabel("Describe how this persona should sound. Example replies help Repli match its rhythm, emoji, and punctuation.",
+                14, RepliStyle.muted)
+            Spacer(Modifier.height(14.dp))
+            Column(Modifier.heightIn(max = 440.dp).verticalScroll(rememberScrollState())) {
+                RepliInput(name, { name = it }, "FUN NAME", "e.g. The Spark",
+                    singleLine = true, maxLength = 50)
+                Spacer(Modifier.height(14.dp))
+                RepliInput(description, { description = it }, "THE VIBE", "How should replies sound?",
+                    minLines = 3, maxLines = 6, maxLength = 500)
+                Spacer(Modifier.height(14.dp))
+                RepliLabel("SHOW REPLI WHAT YOU MEAN", 13, RepliStyle.accent, bold = true)
                 Spacer(Modifier.height(8.dp))
                 listOf(example1, example2, example3).forEachIndexed { index, value ->
-                    OutlinedTextField(value, { changed ->
-                        if (changed.length <= 280) when (index) {
+                    RepliInput(value, { changed ->
+                        when (index) {
                             0 -> example1 = changed
                             1 -> example2 = changed
                             else -> example3 = changed
                         }
-                    }, label = { Text("Example reply ${index + 1} (optional)") },
-                        maxLines = 3, modifier = Modifier.fillMaxWidth())
-                    Spacer(Modifier.height(8.dp))
+                    }, label = "EXAMPLE ${index + 1}", placeholder = "Write a reply in this persona's voice…",
+                        maxLines = 3, maxLength = 280)
+                    Spacer(Modifier.height(14.dp))
                 }
             }
-        },
-        confirmButton = { TextButton(enabled = valid, onClick = {
-            onSave(name, description, listOf(example1, example2, example3))
-        }) { Text("Save persona") } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } })
+            Spacer(Modifier.height(10.dp))
+            RepliAction("Save persona", enabled = valid, onClick = {
+                onSave(name, description, listOf(example1, example2, example3))
+            })
+            TextButton(onClick = onDismiss) { Text("Cancel", color = RepliStyle.muted) }
+            Spacer(Modifier.height(12.dp))
+    }
 }

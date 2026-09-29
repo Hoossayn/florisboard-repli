@@ -17,13 +17,16 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.Icon
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
@@ -37,6 +40,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.toArgb
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
@@ -113,7 +117,8 @@ internal fun RepliCard(tinted: Boolean = false, modifier: Modifier = Modifier,
 
 @Composable
 internal fun RepliAction(label: String, onClick: () -> Unit, filled: Boolean = true,
-    enabled: Boolean = true, modifier: Modifier = Modifier) {
+    enabled: Boolean = true, modifier: Modifier = Modifier, iconRes: Int? = null,
+    iconTint: Color = Color.Unspecified) {
     Button(
         onClick = onClick,
         enabled = enabled,
@@ -127,6 +132,11 @@ internal fun RepliAction(label: String, onClick: () -> Unit, filled: Boolean = t
         ),
         elevation = ButtonDefaults.buttonElevation(defaultElevation = 2.dp),
     ) {
+        if (iconRes != null) {
+            Icon(painterResource(iconRes), contentDescription = null,
+                modifier = Modifier.size(20.dp), tint = iconTint)
+            Spacer(Modifier.width(10.dp))
+        }
         Text(label, fontSize = 14.sp, lineHeight = 17.sp, fontWeight = FontWeight.Medium)
     }
 }

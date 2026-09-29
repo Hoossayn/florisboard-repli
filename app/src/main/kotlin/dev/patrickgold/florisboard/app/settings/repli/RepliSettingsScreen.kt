@@ -74,6 +74,11 @@ fun RepliSettingsScreen() {
         Spacer(Modifier.height(6.dp))
         RepliLabel("Choose what Repli can use. You're in control.", 15, RepliStyle.muted)
 
+        Spacer(Modifier.height(16.dp))
+        RepliAction("See how Repli works", {
+            navController.navigate(Routes.Settings.RepliWelcome)
+        }, filled = false)
+
         Spacer(Modifier.height(20.dp))
         RepliCard {
             RepliLabel("Cloud replies & account", 18, RepliStyle.ink, bold = true)

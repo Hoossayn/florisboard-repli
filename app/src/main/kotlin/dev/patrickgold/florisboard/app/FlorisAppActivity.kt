@@ -125,7 +125,9 @@ class FlorisAppActivity : ComponentActivity() {
                     }
                 }
             }
-            onNewIntent(intent)
+            // NavController restores its own destination after a configuration change.
+            // Rehandling the original deep link would restart an in-progress onboarding tour.
+            if (savedInstanceState == null) onNewIntent(intent)
         }
     }
 

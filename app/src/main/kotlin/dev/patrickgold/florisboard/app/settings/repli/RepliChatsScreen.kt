@@ -23,6 +23,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -34,9 +35,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.patrickgold.florisboard.app.LocalNavController
 import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.repli.data.LearnedStyleRepository
+import dev.patrickgold.florisboard.repli.account.ProfileMemoryClient
+import dev.patrickgold.florisboard.repli.account.RepliFirebaseAccountManager
 import dev.patrickgold.florisboard.repli.data.ProfileRepository
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
 import dev.patrickgold.florisboard.repli.profile.VoiceStyle
+import kotlinx.coroutines.launch
 
 @Composable
 fun RepliChatsScreen() {
@@ -44,10 +48,13 @@ fun RepliChatsScreen() {
     val navController = LocalNavController.current
     val repository = remember(context) { ProfileRepository(context) }
     val learned = remember(context) { LearnedStyleRepository(context) }
+    val scope = rememberCoroutineScope()
     var profiles by remember { mutableStateOf(repository.profiles()) }
     var styleRevision by remember { mutableIntStateOf(0) }
     var addDialog by remember { mutableStateOf(false) }
     var removeProfile by remember { mutableStateOf<VoiceProfile?>(null) }
+    var removeError by remember { mutableStateOf<String?>(null) }
+    var removing by remember { mutableStateOf(false) }
     var toneProfile by remember { mutableStateOf<VoiceProfile?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
@@ -88,7 +95,7 @@ fun RepliChatsScreen() {
                                     else "${profile.style.displayName} · ${style.messagesAnalyzed} writing examples",
                                     13, RepliStyle.muted)
                             }
-                            TextButton(onClick = { removeProfile = profile }) {
+                            TextButton(onClick = { removeError = null; removeProfile = profile }) {
                                 RepliLabel("Remove", 14, RepliStyle.accent)
                             }
                         }
@@ -98,7 +105,7 @@ fun RepliChatsScreen() {
                             Spacer(Modifier.height(10.dp))
                             RepliLabel(style.summary(), 13, RepliStyle.ink)
                             Spacer(Modifier.height(10.dp))
-                            RepliAction("Forget learned messages", {
+                            RepliAction("Forget local writing examples", {
                                 learned.delete(profile.id)
                                 styleRevision++
                             }, filled = false)
@@ -110,9 +117,9 @@ fun RepliChatsScreen() {
         }
         Spacer(Modifier.height(12.dp))
         RepliCard {
-            RepliLabel("Your style, not your entire history", 17, RepliStyle.ink, bold = true)
+            RepliLabel("Your style and chat memory", 17, RepliStyle.ink, bold = true)
             Spacer(Modifier.height(8.dp))
-            RepliLabel("Optional: teach Repli with a few of your own messages while you scroll a chat. Review and choose every example before saving.",
+            RepliLabel("Cloud replies remember approved chat messages by saved chat, including your outgoing style. You can also teach Repli with your own messages while you scroll a chat.",
                 14, RepliStyle.muted)
             Spacer(Modifier.height(14.dp))
             RepliAction("Learn from visible messages", {
@@ -130,12 +137,23 @@ fun RepliChatsScreen() {
     removeProfile?.let { profile ->
         AlertDialog(onDismissRequest = { removeProfile = null },
             title = { Text("Remove ${profile.name}?") },
-            text = { Text("This removes the saved chat and its writing examples from this device.") },
-            confirmButton = { TextButton(onClick = {
-                repository.remove(profile.id)
-                profiles = repository.profiles()
-                removeProfile = null
-            }) { Text("Remove") } },
+            text = { Text(removeError ?: "This removes the chat and its writing examples from this device and deletes its saved cloud history.") },
+            confirmButton = { TextButton(enabled = !removing, onClick = {
+                removing = true
+                scope.launch {
+                    try {
+                        if (RepliFirebaseAccountManager.state.value.configured) ProfileMemoryClient.delete(profile.id)
+                        repository.remove(profile.id)
+                        profiles = repository.profiles()
+                        removeProfile = null
+                        removeError = null
+                    } catch (error: Exception) {
+                        removeError = error.message ?: "Could not remove cloud memory. Try again."
+                    } finally {
+                        removing = false
+                    }
+                }
+            }) { Text(if (removing) "Removing…" else "Remove") } },
             dismissButton = { TextButton(onClick = { removeProfile = null }) { Text("Keep") } })
     }
     toneProfile?.let { profile ->

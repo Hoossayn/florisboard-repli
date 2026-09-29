@@ -38,6 +38,7 @@ object RepliAccountSessionProvider : RepliBackendSessionProvider {
 }
 
 internal data class ReplyBackendResponse(val status: Int, val body: String)
+data class RemoteReplyBatch(val replies: List<String>, val memorySaved: Boolean?)
 
 internal fun interface ReplyBackendTransport {
     suspend fun post(endpoint: String, bearerToken: String, body: ByteArray): ReplyBackendResponse
@@ -54,7 +55,9 @@ class ServerMediatedReplyEngine internal constructor(
     constructor(endpoint: String, sessionProvider: RepliBackendSessionProvider) :
         this(endpoint, sessionProvider, UrlConnectionReplyBackendTransport)
 
-    override suspend fun suggest(request: PreparedRemoteReplyRequest): List<String> {
+    override suspend fun suggest(request: PreparedRemoteReplyRequest): List<String> = suggestDetailed(request).replies
+
+    suspend fun suggestDetailed(request: PreparedRemoteReplyRequest): RemoteReplyBatch {
         val bearerToken = sessionProvider.bearerTokenForRequest()
             ?: throw RemoteReplyAuthenticationException("A Repli account session is required")
         require(BEARER_TOKEN_PATTERN.matches(bearerToken)) { "Invalid Repli account session" }
@@ -77,19 +80,25 @@ class ServerMediatedReplyEngine internal constructor(
 
         val json = runCatching { JSONObject(response.body) }
             .getOrElse { throw RemoteReplyException("Reply backend returned invalid JSON", it) }
+        val memorySaved = if (request.profileId != null) json.opt("memory_saved") as? Boolean else null
         val array = json.optJSONArray("candidates")
             ?: throw RemoteReplyException("Reply backend omitted candidates")
         val candidates = List(array.length()) { index ->
             array.opt(index) as? String
                 ?: throw RemoteReplyException("Reply candidates must be strings")
         }
-        return runCatching { requireThreeCandidates(candidates) }
+        val replies = runCatching { requireThreeCandidates(candidates) }
             .getOrElse { throw RemoteReplyException(it.message ?: "Invalid reply candidates", it) }
+        return RemoteReplyBatch(replies, memorySaved)
     }
 
     private fun PreparedRemoteReplyRequest.toJson() = JSONObject().apply {
         // An older server must reject guidance, not silently generate without applying it.
-        put("contract_version", if (instructions == null) CONTRACT_VERSION else GUIDANCE_CONTRACT_VERSION)
+        put("contract_version", if (profileId != null) MEMORY_CONTRACT_VERSION else if (instructions == null) CONTRACT_VERSION else GUIDANCE_CONTRACT_VERSION)
+        if (profileId != null) {
+            require(PROFILE_ID_PATTERN.matches(profileId)) { "Invalid profile ID" }
+            put("profile_id", profileId)
+        }
         if (instructions != null) {
             require(RemoteReplyPrivacyPolicy.prepareInstructions(instructions) == instructions)
             put("instructions", instructions)
@@ -110,8 +119,10 @@ class ServerMediatedReplyEngine internal constructor(
     companion object {
         const val CONTRACT_VERSION = 1
         const val GUIDANCE_CONTRACT_VERSION = 2
+        const val MEMORY_CONTRACT_VERSION = 3
         private const val MAX_REQUEST_BYTES = 64 * 1_024
         private val BEARER_TOKEN_PATTERN = Regex("[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+")
+        private val PROFILE_ID_PATTERN = Regex("[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}")
 
         fun isConfigured(endpoint: String): Boolean = runCatching { validateEndpoint(endpoint) }.isSuccess
 

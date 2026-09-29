@@ -29,12 +29,13 @@ data class PreparedRemoteReplyRequest(
     val context: List<SharedConversationTurn>,
     val style: SharedReplyStyle,
     val instructions: String? = null,
+    val profileId: String? = null,
 )
 
 /**
  * Applies the privacy boundary before the network layer sees any data. It has no
- * fields for package names, contact/profile identifiers, notification metadata,
- * screenshots, or the retained message corpus.
+ * fields for package names, contact names, notification metadata, screenshots,
+ * or the retained message corpus. A selected profile contributes only its opaque ID.
  */
 object RemoteReplyPrivacyPolicy {
     const val MAX_CONTEXT_TURNS = 60
@@ -49,6 +50,7 @@ object RemoteReplyPrivacyPolicy {
         learnedSnapshot: LearnedStyleSnapshot?,
         compactLearnedStyle: LearnedTextingStyle? = learnedSnapshot?.style,
         instructions: String? = null,
+        profileId: String? = null,
     ): PreparedRemoteReplyRequest {
         val context = turns
             .mapNotNull { turn ->
@@ -67,6 +69,7 @@ object RemoteReplyPrivacyPolicy {
                 examples = examples,
             ),
             instructions = prepareInstructions(instructions),
+            profileId = profileId,
         )
     }
 

@@ -325,6 +325,8 @@ private fun ReviewBody(
     }
     if (sourceStatus.isNotBlank()) Text(sourceStatus, color = Muted, fontSize = 11.sp,
         maxLines = 2, overflow = TextOverflow.Ellipsis)
+    Text("Saved chats can include earlier approved messages in cloud replies.",
+        color = Muted, fontSize = 11.sp)
     if (instructions != null) {
         Text("Direction: $instructions", color = Accent, fontSize = 11.sp,
             maxLines = 1, overflow = TextOverflow.Ellipsis,
@@ -371,6 +373,8 @@ private fun ApprovalBody(
     Text("Review before cloud generation", color = Ink, fontSize = 16.sp, fontWeight = FontWeight.Bold)
     Text("${approval.turnCount} messages · ${approval.stylePreset} tone · ${approval.exampleCount} examples",
         color = Muted, fontSize = 12.sp)
+    Text("Saved chats may add earlier approved messages and writing style to cloud replies.",
+        color = Muted, fontSize = 11.sp)
     if (status.isNotBlank()) Text(status, color = Muted, fontSize = 11.sp)
     approval.instructions?.let {
         Text("Direction: $it", color = Ink, fontSize = 12.sp)

@@ -229,7 +229,7 @@ fun RepliSettingsScreen() {
             clearLearning = false
         }, onDismiss = { clearLearning = false })
     if (privacyFaq) RepliDisclosure("Privacy & FAQ",
-        "Repli never sends a chat message automatically. Keyboard learning stays on-device. AI reading may use captured images when cloud capture is enabled. Tapping Generate replies sends reviewed text, your direction, and selected style examples. Captured images are not saved to app storage.",
+        "Repli never sends a chat message automatically. Keyboard learning stays on-device. AI reading may use captured images when cloud capture is enabled. Tapping Generate replies sends reviewed text, your direction, selected style examples, and the saved chat ID to Repli's backend. It stores up to 120 approved turns per chat; later requests can include up to 24 earlier turns and five outgoing style examples. Captured images are not saved to app storage.",
         "Done", onConfirm = { privacyFaq = false }, onDismiss = { privacyFaq = false })
 }
 

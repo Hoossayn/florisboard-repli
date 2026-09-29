@@ -751,8 +751,9 @@ class RepliReplyOrchestrator(
             val current = ReplyCaptureSession.state.value ?: return@launch
             val fresh = RemoteReplyPrivacyPolicy.prepare(
                 current.turns, profile?.style, snapshot, instructions = current.instructions,
+                profileId = profile?.id,
             )
-            if (fresh.context != displayed.context || fresh.instructions != displayed.instructions) return@launch
+            if (fresh != displayed) return@launch
             withContext(Dispatchers.Main) {
                 if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
                 generate(state, approved = displayed, more = pendingMore)
@@ -974,6 +975,7 @@ class RepliReplyOrchestrator(
                 val snapshot = profile?.let { LearnedStyleRepository(appContext).get(it.id) }
                 val prepared = RemoteReplyPrivacyPolicy.prepare(
                     state.turns, profile?.style, snapshot, instructions = state.instructions,
+                    profileId = profile?.id,
                 )
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
@@ -1015,22 +1017,24 @@ class RepliReplyOrchestrator(
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
-                val replies = withTimeout(GENERATION_TIMEOUT_MS) { engine.suggest(approved) }
+                val batch = withTimeout(GENERATION_TIMEOUT_MS) { engine.suggestDetailed(approved) }
                 withContext(Dispatchers.Main) {
                     if (ReplyCaptureSession.state.value?.id != state.id) return@withContext
                     pendingRemoteRequest = null
                     lastApprovedRequest = approved
                     pendingMore = false
-                    val combined = (keep + replies).distinct().take(9)
+                    val combined = (keep + batch.replies).distinct().take(9)
                     ReplyCaptureSession.update(state.id) {
                         it.copy(phase = ReplyPhase.READY,
                             replies = combined,
                             message = if (more && combined.size == keep.size) {
                                 "No new replies this time · add a direction or try again"
-                            } else "Cloud replies · tap to insert, then edit",
+                            } else if (approved.profileId != null && batch.memorySaved != true) {
+                                "Replies ready · couldn't save chat memory"
+                            } else "Tap to insert, then edit",
                             generationError = null)
                     }
-                    flogDebug { "RepliReply: READY cloud replies=${replies.size}" }
+                    flogDebug { "RepliReply: READY cloud replies=${batch.replies.size}" }
                 }
             } catch (timeout: kotlinx.coroutines.TimeoutCancellationException) {
                 withContext(Dispatchers.Main) {

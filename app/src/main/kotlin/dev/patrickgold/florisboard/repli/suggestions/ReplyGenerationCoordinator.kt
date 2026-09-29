@@ -36,7 +36,7 @@ class ReplyGenerationCoordinator(
                 }
                 return ReplyGenerationResult(
                     replies = remoteReplies,
-                    explanation = "Cloud replies · tap to insert, then edit",
+                    explanation = "Tap to insert, then edit",
                     origin = ReplyOrigin.REMOTE,
                 )
             } catch (_: TimeoutCancellationException) {

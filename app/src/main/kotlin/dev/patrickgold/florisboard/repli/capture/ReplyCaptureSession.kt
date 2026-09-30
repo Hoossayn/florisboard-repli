@@ -48,7 +48,9 @@ object ReplyCaptureSession {
         mutable.value?.id?.let(ReviewEvidenceStore::discard)
         return ReplyCaptureState(
             id = UUID.randomUUID().toString(), editor = editor,
-            turns = if (append) previous?.turns.orEmpty() else emptyList(),
+            // The next capture replaces the in-memory source images. Older text stays in
+            // context, but its coordinates must not point at a different screenshot.
+            turns = if (append) previous?.turns.orEmpty().map { it.copy(source = null) } else emptyList(),
             frames = if (append) previous?.frames ?: 0 else 0,
             instructions = previous?.instructions,
             viewport = viewport,

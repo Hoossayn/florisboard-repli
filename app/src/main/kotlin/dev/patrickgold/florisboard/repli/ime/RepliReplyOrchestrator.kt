@@ -36,6 +36,7 @@ import dev.patrickgold.florisboard.repli.identity.ConfirmedConversationIdentity
 import dev.patrickgold.florisboard.repli.identity.ConversationIdentityResolution
 import dev.patrickgold.florisboard.repli.identity.ConversationIdentityResolver
 import dev.patrickgold.florisboard.repli.identity.CapturedContactProfileMatcher
+import dev.patrickgold.florisboard.repli.identity.CapturedContactName
 import dev.patrickgold.florisboard.repli.profile.ProfileMatcher
 import dev.patrickgold.florisboard.repli.profile.RecentMessage
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
@@ -102,6 +103,9 @@ data class RepliReplyUiState(
     val awaitingReview: Boolean = false,
     val reviewTurns: List<ConversationTurn> = emptyList(),
     val reviewFrames: Int = 0,
+    val capturedChatName: String? = null,
+    val captureWarning: String? = null,
+    val canUndoReviewRemoval: Boolean = false,
     val contextTurns: List<ConversationTurn> = emptyList(),
     val instructions: String? = null,
     val approval: RepliApprovalCard? = null,
@@ -168,6 +172,10 @@ class RepliReplyOrchestrator(
     private var guidanceDraftText = ""
     private var guidanceForMore = false
     private var reviewingTurns: MutableList<ConversationTurn>? = null
+    private data class RemovedReviewTurn(val sessionId: String, val index: Int, val turn: ConversationTurn)
+    private var removedReviewTurn: RemovedReviewTurn? = null
+    private var capturedChatName: String? = null
+    private var captureWarning: String? = null
     private var guidanceDraftId: String? = null
     private var guidanceReviewId: String? = null
     private var guidanceOverride: String? = null
@@ -384,6 +392,11 @@ class RepliReplyOrchestrator(
         pendingRemoteRequest = null
         lastApprovedRequest = null
         reviewingTurns = null
+        removedReviewTurn = null
+        if (!append) {
+            capturedChatName = null
+            captureWarning = null
+        }
         guidanceDraftId = null
         guidanceOverride = null
         val metrics: DisplayMetrics = appContext.resources.displayMetrics
@@ -438,6 +451,9 @@ class RepliReplyOrchestrator(
         pendingMore = false
         moreRepliesExpanded = false
         reviewingTurns = null
+        removedReviewTurn = null
+        capturedChatName = null
+        captureWarning = null
         guidanceDraftId = null
         guidanceReviewId = null
         guidanceDraftText = ""
@@ -514,28 +530,34 @@ class RepliReplyOrchestrator(
         if (state.turns.isEmpty() || state.busy) return
         if (state.phase == ReplyPhase.CAPTURE_REVIEW) return
         reviewingTurns = state.turns.toMutableList()
+        removedReviewTurn = null
         publish()
     }
 
     fun closeReview() {
         if (ReplyCaptureSession.state.value?.phase == ReplyPhase.REVIEW) return
         reviewingTurns = null
+        removedReviewTurn = null
         publish()
-    }
-
-    fun flipReviewSpeaker(index: Int) {
-        val turns = reviewingTurns ?: return
-        if (index !in turns.indices) return
-        val updated = turns.toMutableList()
-        updated[index] = updated[index].copy(fromMe = !updated[index].fromMe)
-        saveReviewTurns(updated)
     }
 
     fun removeReviewTurn(index: Int) {
         val turns = reviewingTurns ?: return
         if (index !in turns.indices) return
         val updated = turns.toMutableList()
-        updated.removeAt(index)
+        val removed = updated.removeAt(index)
+        removedReviewTurn = ReplyCaptureSession.state.value?.id?.let { RemovedReviewTurn(it, index, removed) }
+        saveReviewTurns(updated)
+    }
+
+    fun undoReviewRemoval() {
+        val removed = removedReviewTurn ?: return
+        val state = ReplyCaptureSession.state.value ?: return
+        val turns = reviewingTurns ?: return
+        if (state.id != removed.sessionId) return
+        val updated = turns.toMutableList()
+        updated.add(removed.index.coerceIn(0, updated.size), removed.turn)
+        removedReviewTurn = null
         saveReviewTurns(updated)
     }
 
@@ -553,6 +575,7 @@ class RepliReplyOrchestrator(
         val edited = reviewingTurns ?: return
         if (edited.isEmpty()) return
         reviewingTurns = null
+        removedReviewTurn = null
         pendingRemoteRequest = null
         lastApprovedRequest = null
         ReplyCaptureSession.update(state.id) {
@@ -818,6 +841,8 @@ class RepliReplyOrchestrator(
             val request = pendingRemoteRequest ?: return
             FullScreenContextReviewActivity.intent(appContext, state.id, request)
         }
+        removedReviewTurn = null
+        publish()
         fsOriginal = state.editor
         FullScreenContextReviewSession.begin(state.id)
         try {
@@ -841,6 +866,9 @@ class RepliReplyOrchestrator(
             closeVoiceRecorder()
             pendingRemoteRequest = null
             reviewingTurns = null
+            removedReviewTurn = null
+            capturedChatName = null
+            captureWarning = null
             guidanceDraftId = null
             guidanceReviewId = null
             guidanceOverride = null
@@ -1156,6 +1184,14 @@ class RepliReplyOrchestrator(
                 RepliFirebaseAccountManager.state.value.signedIn)
 
     private fun selectCapturedContact(localHeaderName: String?, aiName: String? = null) {
+        val sessionId = ReplyCaptureSession.state.value?.id ?: return
+        val newName = CapturedContactName.prepare(localHeaderName) ?: CapturedContactName.prepare(aiName)
+        if (newName != null && capturedChatName != null &&
+            !newName.equals(capturedChatName, ignoreCase = true)) {
+            captureWarning = "Captured chat changed from $capturedChatName to $newName. Check the messages before generating."
+        }
+        capturedChatName = newName ?: capturedChatName
+        publish()
         if (localHeaderName == null && aiName == null) return
         scope.launch(Dispatchers.IO) {
             val repository = ProfileRepository(appContext)
@@ -1168,6 +1204,7 @@ class RepliReplyOrchestrator(
                     repository.add(match.name, "Added from AI capture", VoiceStyle.CASUAL)
             }
             withContext(Dispatchers.Main) {
+                if (ReplyCaptureSession.state.value?.id != sessionId) return@withContext
                 profiles = repository.profiles()
                 selectedProfileId = profile.id
                 confirmedIdentity = null
@@ -1214,6 +1251,10 @@ class RepliReplyOrchestrator(
         val draftId = guidanceDraftId
         val guidanceOpen = draftId != null && session?.id == draftId && session.phase == ReplyPhase.DRAFT
         val voiceState = voiceRecorder?.let { if (voiceDraftId != null) it.state else null }
+        val reviewChatName = (capturedChatName ?: selectedProfile()?.name)?.let { name ->
+            if (session?.editor?.packageName == appContext.packageName &&
+                !name.endsWith("· practice chat", ignoreCase = true)) "$name · practice chat" else name
+        }
         mutable.value = current.copy(
             active = active,
             busy = session?.busy == true,
@@ -1232,6 +1273,9 @@ class RepliReplyOrchestrator(
             awaitingReview = session?.phase == ReplyPhase.REVIEW,
             reviewTurns = review.orEmpty(),
             reviewFrames = session?.frames ?: 0,
+            capturedChatName = reviewChatName,
+            captureWarning = captureWarning,
+            canUndoReviewRemoval = removedReviewTurn?.sessionId == session?.id && review != null,
             contextTurns = session?.turns.orEmpty(),
             instructions = session?.instructions,
             approval = approval,

@@ -267,7 +267,11 @@ class FullScreenContextReviewActivity : ComponentActivity() {
     }
 
     private fun showSource(message: ConversationTurn) {
-        val bitmap = message.source?.let { ReviewEvidenceStore.crop(requestId, it) } ?: return
+        val bitmap = message.source?.let { ReviewEvidenceStore.crop(requestId, it) }
+        if (bitmap == null) {
+            Toast.makeText(this, "Source image is no longer available", Toast.LENGTH_SHORT).show()
+            return
+        }
         val image = ImageView(this).apply {
             setImageBitmap(bitmap)
             adjustViewBounds = true

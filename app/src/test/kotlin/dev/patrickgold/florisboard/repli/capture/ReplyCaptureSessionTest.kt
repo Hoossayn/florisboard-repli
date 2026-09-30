@@ -67,10 +67,10 @@ class ReplyCaptureSessionTest {
 
     @Test fun `append preserves only matching editor context and never old replies`() {
         val first = ReplyCaptureSession.begin(editor)
-        val turns = listOf(ConversationTurn("Hello", false))
+        val turns = listOf(ConversationTurn("Hello", false, TurnSource(0, 10, 10, 100, 100)))
         ReplyCaptureSession.update(first.id) { it.copy(turns = turns, frames = 1, replies = listOf("Hi")) }
         val appended = ReplyCaptureSession.begin(editor, append = true)
-        assertEquals(turns, appended.turns)
+        assertEquals(turns.map { it.copy(source = null) }, appended.turns)
         assertEquals(1, appended.frames)
         assertTrue(appended.replies.isEmpty())
         val other = ReplyCaptureSession.begin(editor.copy(packageName = "different.app"), append = true)

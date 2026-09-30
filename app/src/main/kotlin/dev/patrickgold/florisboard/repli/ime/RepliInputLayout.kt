@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
@@ -25,7 +26,6 @@ import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.ExpandMore
 import androidx.compose.material.icons.filled.Mic
-import androidx.compose.material.icons.filled.SwapHoriz
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -143,7 +143,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
     val keyboardHeight = FlorisImeSizing.imeUiHeight()
     val moreHeight = minOf(LocalConfiguration.current.screenHeightDp.dp * 0.48f, 440.dp)
     val panelHeight = when {
-        ui.reviewing -> keyboardHeight + 72.dp
+        ui.reviewing -> keyboardHeight + 112.dp
         ui.suggestions.isNotEmpty() && !ui.guidanceOpen -> maxOf(keyboardHeight, moreHeight)
         else -> keyboardHeight
     }
@@ -171,22 +171,51 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                 TextButton(onClick = { orchestrator.clear() }) { Text("Clear", color = Muted, fontSize = 12.sp) }
             }
         }
-        Surface(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(42.dp)
-                .clickable(enabled = !ui.busy) {
-                    if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
-                },
-            shape = RoundedCornerShape(15.dp),
-            color = Card,
-            border = BorderStroke(1.dp, Line),
-        ) {
-            Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
-                Text("Persona", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
-                Spacer(Modifier.weight(1f))
-                Text("${ui.selectedProfileName ?: "This reply"} · ${ui.selectedPersonaName}", color = Ink, fontSize = 12.sp,
-                    maxLines = 1, overflow = TextOverflow.Ellipsis)
-                Icon(Icons.Default.ExpandMore, contentDescription = "Choose persona", tint = Accent,
-                    modifier = Modifier.size(19.dp))
+        if (ui.reviewing) {
+            Row(
+                Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Column(Modifier.weight(1f)) {
+                    Text("Chat", color = Muted, fontSize = 10.sp)
+                    Text(ui.capturedChatName ?: ui.selectedProfileName ?: "Unidentified chat",
+                        color = Ink, fontSize = 13.sp, fontWeight = FontWeight.SemiBold,
+                        maxLines = 1, overflow = TextOverflow.Ellipsis)
+                }
+                Surface(
+                    modifier = Modifier.widthIn(max = 150.dp).clickable(enabled = !ui.busy) {
+                        if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
+                    },
+                    shape = RoundedCornerShape(14.dp), color = Card, border = BorderStroke(1.dp, Line),
+                ) {
+                    Row(Modifier.padding(horizontal = 9.dp, vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically) {
+                        Text(ui.selectedPersonaName, modifier = Modifier.weight(1f, fill = false),
+                            color = Accent, fontSize = 11.sp,
+                            fontWeight = FontWeight.SemiBold, maxLines = 1,
+                            overflow = TextOverflow.Ellipsis)
+                        Icon(Icons.Default.ExpandMore, contentDescription = "Choose persona",
+                            tint = Accent, modifier = Modifier.size(17.dp))
+                    }
+                }
+            }
+        } else {
+            Surface(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp).height(42.dp)
+                    .clickable(enabled = !ui.busy) {
+                        if (ui.showChatPicker) orchestrator.closeChatPicker() else orchestrator.openChatPicker()
+                    },
+                shape = RoundedCornerShape(15.dp), color = Card, border = BorderStroke(1.dp, Line),
+            ) {
+                Row(Modifier.padding(horizontal = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Text("Persona", color = Accent, fontSize = 12.sp, fontWeight = FontWeight.SemiBold)
+                    Spacer(Modifier.weight(1f))
+                    Text("${ui.selectedProfileName ?: "This reply"} · ${ui.selectedPersonaName}",
+                        color = Ink, fontSize = 12.sp, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                    Icon(Icons.Default.ExpandMore, contentDescription = "Choose persona", tint = Accent,
+                        modifier = Modifier.size(19.dp))
+                }
             }
         }
         Spacer(Modifier.height(7.dp))
@@ -217,6 +246,19 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             )
             return@Column
         }
+        if (ui.reviewing && !ui.showChatPicker) {
+            Row(Modifier.fillMaxWidth().padding(horizontal = 12.dp),
+                verticalAlignment = Alignment.CenterVertically) {
+                Text("${ui.reviewFrames} view${if (ui.reviewFrames == 1) "" else "s"} · ${ui.reviewTurns.size} messages",
+                    color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
+                if (ui.reviewFrames < 4) SmallAction("Add page") { orchestrator.beginCapture(append = true) }
+            }
+            ui.captureWarning?.let { warning ->
+                Text(warning, modifier = Modifier.fillMaxWidth().padding(horizontal = 14.dp, vertical = 3.dp),
+                    color = ErrorText, fontSize = 11.sp, maxLines = 2,
+                    overflow = TextOverflow.Ellipsis)
+            }
+        }
         Column(
             modifier = Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState())
                 .padding(horizontal = 12.dp),
@@ -246,15 +288,9 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                 when {
                     ui.reviewing -> ReviewBody(
                         turns = ui.reviewTurns,
-                        frames = ui.reviewFrames,
-                        canAddPage = ui.reviewFrames < 4,
-                        instructions = ui.instructions,
                         sourceStatus = if (ui.generationError == null && !ui.status.startsWith("AI read "))
                             ui.status else "",
-                        onFlip = orchestrator::flipReviewSpeaker,
                         onRemove = orchestrator::removeReviewTurn,
-                        onDirection = orchestrator::openGuidance,
-                        onAddPage = { orchestrator.beginCapture(append = true) },
                     )
                     ui.approval != null -> ApprovalBody(
                         approval = ui.approval!!,
@@ -308,6 +344,19 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                     maxLines = 3, overflow = TextOverflow.Ellipsis,
                 )
             }
+        }
+        if (ui.reviewing && !ui.showChatPicker) {
+            if (ui.canUndoReviewRemoval) {
+                Row(Modifier.fillMaxWidth().padding(horizontal = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically) {
+                    Text("Message removed", color = Muted, fontSize = 11.sp,
+                        modifier = Modifier.weight(1f))
+                    SmallAction("Undo", orchestrator::undoReviewRemoval)
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            ReviewDirectionCard(ui.instructions, orchestrator::openGuidance)
+            Spacer(Modifier.height(10.dp))
         }
         when {
             ui.showChatPicker -> PanelFooter("Done", onClick = orchestrator::closeChatPicker)
@@ -380,20 +429,9 @@ private fun PersonaChatOption(title: String, subtitle: String, selected: Boolean
 @Composable
 private fun ReviewBody(
     turns: List<ConversationTurn>,
-    frames: Int,
-    canAddPage: Boolean,
-    instructions: String?,
     sourceStatus: String,
-    onFlip: (Int) -> Unit,
     onRemove: (Int) -> Unit,
-    onDirection: () -> Unit,
-    onAddPage: () -> Unit,
 ) {
-    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
-        Text("${turns.size} messages · $frames captured view${if (frames == 1) "" else "s"}",
-            color = Muted, fontSize = 11.sp, modifier = Modifier.weight(1f))
-        if (canAddPage) SmallAction("Add page", onAddPage)
-    }
     if (sourceStatus.isNotBlank()) Text(sourceStatus, color = Muted, fontSize = 11.sp,
         maxLines = 2, overflow = TextOverflow.Ellipsis)
     turns.forEachIndexed { index, turn ->
@@ -403,28 +441,26 @@ private fun ReviewBody(
             color = if (turn.fromMe) AccentSoft else Card,
             border = BorderStroke(1.dp, Line),
         ) {
-            Row(Modifier.padding(start = 11.dp, end = 3.dp, top = 6.dp, bottom = 6.dp),
+            Row(Modifier.fillMaxWidth().padding(start = 11.dp, end = 3.dp, top = 8.dp, bottom = 8.dp),
                 verticalAlignment = Alignment.Top) {
                 Column(Modifier.weight(1f)) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(if (turn.fromMe) "You" else "Them",
-                            color = Accent, fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
-                        IconButton(onClick = { onFlip(index) }, modifier = Modifier.size(28.dp)) {
-                            Icon(Icons.Default.SwapHoriz,
-                                contentDescription = "Switch speaker for message ${index + 1}",
-                                tint = Accent, modifier = Modifier.size(17.dp))
-                        }
-                    }
+                    Text(if (turn.fromMe) "You" else "Them", color = Accent,
+                        fontSize = 11.sp, fontWeight = FontWeight.SemiBold)
                     Text(turn.text, color = Ink, fontSize = 13.sp, lineHeight = 17.sp)
                 }
-                IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(34.dp)) {
+                IconButton(onClick = { onRemove(index) }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Close, contentDescription = "Remove message ${index + 1}",
                         tint = Muted, modifier = Modifier.size(18.dp))
                 }
             }
         }
     }
-    Surface(modifier = Modifier.fillMaxWidth().clickable(onClick = onDirection),
+}
+
+@Composable
+private fun ReviewDirectionCard(instructions: String?, onDirection: () -> Unit) {
+    Surface(modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp)
+        .clickable(onClick = onDirection),
         shape = CardShape, color = ReplyPromptCard, border = BorderStroke(2.dp, Accent),
         shadowElevation = 3.dp) {
         Row(Modifier.padding(horizontal = 12.dp, vertical = 11.dp),
@@ -448,7 +484,6 @@ private fun ReviewBody(
             }
         }
     }
-    Spacer(Modifier.height(16.dp))
 }
 
 @Composable

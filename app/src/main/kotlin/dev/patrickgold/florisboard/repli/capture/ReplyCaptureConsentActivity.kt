@@ -54,7 +54,11 @@ class ReplyCaptureConsentActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestId = intent.getStringExtra(EXTRA_REQUEST_ID).orEmpty()
-        if (requestId.isBlank() || ReplyCaptureSession.state.value?.id != requestId) { finish(); return }
+        val request = ReplyCaptureSession.state.value
+        if (requestId.isBlank() || request?.id != requestId || request.phase != ReplyPhase.CONSENT) {
+            finish(); return
+        }
+        ReplyCaptureSession.update(requestId) { it.copy(consentActivityOpened = true) }
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() = cancelCapture("Capture cancelled. Nothing was read.")
         })
@@ -140,6 +144,15 @@ class ReplyCaptureConsentActivity : ComponentActivity() {
     private fun cancelCapture(message: String) {
         ReplyCaptureSession.fail(requestId, message)
         finish()
+    }
+
+    override fun onDestroy() {
+        if (!isChangingConfigurations &&
+            ReplyCaptureSession.state.value?.let { it.id == requestId && it.phase == ReplyPhase.CONSENT } == true) {
+            ReplyCaptureSession.fail(requestId,
+                "Screen-sharing permission closed before capture. Tap Suggest replies to retry.")
+        }
+        super.onDestroy()
     }
 
     override fun onSaveInstanceState(outState: Bundle) {

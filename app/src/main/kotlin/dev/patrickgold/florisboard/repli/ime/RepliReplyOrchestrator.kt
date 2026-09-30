@@ -1,5 +1,6 @@
 package dev.patrickgold.florisboard.repli.ime
 
+import android.app.admin.DevicePolicyManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -423,20 +424,37 @@ class RepliReplyOrchestrator(
                 .coerceAtLeast(displayHeight / 2),
             readyAt = 0L,
         )
+        val captureDisabled = runCatching {
+            appContext.getSystemService(DevicePolicyManager::class.java)
+                ?.getScreenCaptureDisabled(null) == true
+        }.getOrDefault(false)
+        if (captureDisabled) {
+            update { it.copy(active = true, status = "Screen capture is disabled for this phone profile by its administrator.") }
+            return
+        }
         val begun = ReplyCaptureSession.begin(target, append, viewport)
         update { it.copy(active = true) }
-        hideKeyboard()
+        try {
+            // Start while the IME is still visible. Hiding first can remove Android's
+            // background-activity-launch allowance before the consent host is started.
+            startActivity(
+                Intent(appContext, ReplyCaptureConsentActivity::class.java)
+                    .putExtra(ReplyCaptureConsentActivity.EXTRA_REQUEST_ID, begun.id)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
+            )
+            hideKeyboard()
+        } catch (error: Exception) {
+            flogError { "RepliCapture: consent activity launch failed: ${error::class.java.simpleName}" }
+            ReplyCaptureSession.fail(begun.id, "Couldn't open screen sharing here. Tap the chat field and try again.")
+            return
+        }
         captureLaunch = scope.launch {
-            delay(KEYBOARD_HIDE_SETTLE_MS)
-            if (ReplyCaptureSession.state.value?.id != begun.id) return@launch
-            try {
-                startActivity(
-                    Intent(appContext, ReplyCaptureConsentActivity::class.java)
-                        .putExtra(ReplyCaptureConsentActivity.EXTRA_REQUEST_ID, begun.id)
-                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK),
-                )
-            } catch (_: Exception) {
-                ReplyCaptureSession.fail(begun.id, "Couldn't open screen-sharing permission. Try again from this chat.")
+            delay(CONSENT_ACTIVITY_OPEN_TIMEOUT_MS)
+            val pending = ReplyCaptureSession.state.value
+            if (pending?.id == begun.id && pending.phase == ReplyPhase.CONSENT &&
+                !pending.consentActivityOpened) {
+                ReplyCaptureSession.fail(begun.id,
+                    "Android didn't open screen sharing in this phone profile. Tap the chat field to retry.")
             }
         }
     }
@@ -1335,7 +1353,7 @@ class RepliReplyOrchestrator(
     }
 
     private companion object {
-        const val KEYBOARD_HIDE_SETTLE_MS = 300L
+        const val CONSENT_ACTIVITY_OPEN_TIMEOUT_MS = 8_000L
         const val AI_READING_TIMEOUT_MS = 50_000L
         const val GENERATION_TIMEOUT_MS = 25_000L
         const val MICROPHONE_PERMISSION_TIMEOUT_MS = 30_000L

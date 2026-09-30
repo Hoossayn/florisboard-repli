@@ -23,6 +23,7 @@ data class ReplyCaptureState(
     val frames: Int = 0,
     val viewport: CaptureViewport? = null,
     val awaitingKeyboardReturn: Boolean = false,
+    val consentActivityOpened: Boolean = false,
     val message: String = "Waiting for screen-sharing permission…",
     val generationError: String? = null,
     val instructions: String? = null,

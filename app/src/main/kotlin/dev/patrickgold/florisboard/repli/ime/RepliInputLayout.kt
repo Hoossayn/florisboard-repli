@@ -1,5 +1,10 @@
 package dev.patrickgold.florisboard.repli.ime
 
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -121,6 +126,39 @@ fun RepliReadingBanner(viewCount: Int, onCancel: () -> Unit) {
 }
 
 @Composable
+fun RepliInlineGenerationBanner(modifier: Modifier = Modifier) {
+    val controller = LocalImeController.current.repliReply ?: return
+    val ui by controller.uiState.collectAsState()
+    if (!ui.generating || ui.suggestions.isNotEmpty()) return
+    var takingLonger by remember(ui.status) { mutableStateOf(false) }
+    LaunchedEffect(ui.status) {
+        delay(8_000)
+        takingLonger = true
+    }
+    Surface(
+        modifier = modifier.fillMaxWidth().height(54.dp)
+            .padding(horizontal = 7.dp, vertical = 4.dp)
+            .semantics { liveRegion = LiveRegionMode.Polite },
+        shape = CardShape, color = Card, border = BorderStroke(1.dp, Line),
+    ) {
+        Row(Modifier.padding(horizontal = 11.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            CircularProgressIndicator(modifier = Modifier.size(21.dp), color = Accent,
+                strokeWidth = 2.dp)
+            Column(Modifier.weight(1f)) {
+                Text("Repli is putting ideas together", color = Ink, fontSize = 12.sp,
+                    fontWeight = FontWeight.SemiBold, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+                Text(if (takingLonger) "Still working · you can keep typing" else ui.status,
+                    color = Muted, fontSize = 10.sp, maxLines = 1,
+                    overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
 fun RepliInputLayout(modifier: Modifier = Modifier) {
     val imeController = LocalImeController.current
     val orchestrator = imeController.repliReply
@@ -133,8 +171,8 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
         return
     }
     val ui by orchestrator.uiState.collectAsState()
-    LaunchedEffect(ui.active) {
-        if (!ui.active) {
+    LaunchedEffect(ui.active, ui.generating, ui.suggestions.isEmpty()) {
+        if (!ui.active || (ui.generating && ui.suggestions.isEmpty())) {
             imeController.updateStateBlocking {
                 state = state.copy(flags = state.flags.withImeUiMode(ImeUiMode.TEXT))
             }
@@ -305,7 +343,11 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                                 fontWeight = FontWeight.Bold, modifier = Modifier.weight(1f))
                             SmallAction("Back to keyboard", orchestrator::backToKeyboard)
                         }
-                        if (ui.status.isNotBlank()) Text(ui.status, color = Muted, fontSize = 11.sp)
+                        if (ui.generating) {
+                            GenerationProgressHeader(ui.status)
+                        } else if (ui.status.isNotBlank()) {
+                            Text(ui.status, color = Muted, fontSize = 11.sp)
+                        }
                         ui.suggestions.forEach { suggestion ->
                             Surface(
                                 modifier = Modifier.fillMaxWidth().clickable { orchestrator.insertSuggestion(suggestion) },
@@ -318,6 +360,7 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
                             }
                         }
                     }
+                    ui.generating -> GenerationBody(ui.status)
                     else -> {
                         Text(ui.status.ifBlank { "Capture a chat to find your next reply." },
                             color = Muted, fontSize = 13.sp)
@@ -375,6 +418,51 @@ fun RepliInputLayout(modifier: Modifier = Modifier) {
             !ui.busy && ui.suggestions.isEmpty() -> PanelFooter("Capture chat", onClick = orchestrator::beginSuggestion)
         }
     }
+}
+
+@Composable
+private fun GenerationProgressHeader(status: String) {
+    Surface(modifier = Modifier.fillMaxWidth().semantics { liveRegion = LiveRegionMode.Polite },
+        shape = CardShape, color = Card, border = BorderStroke(1.dp, Line)) {
+        Row(Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+            CircularProgressIndicator(modifier = Modifier.size(25.dp), color = Accent,
+                strokeWidth = 2.5.dp)
+            Column {
+                Text("Repli is putting ideas together", color = Ink, fontSize = 14.sp,
+                    fontWeight = FontWeight.SemiBold)
+                Text(status.ifBlank { "Finding your Repli ideas…" }, color = Muted,
+                    fontSize = 11.sp, maxLines = 2, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+@Composable
+private fun GenerationBody(status: String) {
+    GenerationProgressHeader(status)
+    Text("Your next replies will appear here", color = Muted, fontSize = 12.sp,
+        fontWeight = FontWeight.Medium, modifier = Modifier.padding(top = 5.dp))
+    val transition = rememberInfiniteTransition(label = "reply placeholders")
+    val pulse by transition.animateFloat(
+        initialValue = 0.45f, targetValue = 1f,
+        animationSpec = infiniteRepeatable(tween(1_000), RepeatMode.Reverse),
+        label = "placeholder opacity",
+    )
+    repeat(3) { index ->
+        Surface(modifier = Modifier.fillMaxWidth(), shape = CardShape, color = Card,
+            border = BorderStroke(1.dp, Line)) {
+            Column(Modifier.padding(horizontal = 14.dp, vertical = 11.dp),
+                verticalArrangement = Arrangement.spacedBy(7.dp)) {
+                Box(Modifier.fillMaxWidth(if (index == 1) 0.74f else 0.88f).height(8.dp)
+                    .background(AccentSoft.copy(alpha = pulse), RoundedCornerShape(8.dp)))
+                Box(Modifier.fillMaxWidth(if (index == 2) 0.52f else 0.64f).height(8.dp)
+                    .background(AccentSoft.copy(alpha = pulse), RoundedCornerShape(8.dp)))
+            }
+        }
+    }
+    Text("You choose and edit a reply before it goes into your chat.", color = Muted,
+        fontSize = 11.sp, modifier = Modifier.padding(top = 5.dp))
 }
 
 @Composable
@@ -665,13 +753,13 @@ fun RepliInlineToneBar(modifier: Modifier = Modifier) {
         .height(42.dp),
         color = Card, shape = CardShape, border = BorderStroke(1.dp, Line)) {
         Row(Modifier.padding(start = 8.dp, end = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-            Row(Modifier.weight(1f).clickable { controller.openChatPicker() },
+            Row(Modifier.weight(1f).clickable(enabled = !ui.busy) { controller.openChatPicker() },
                 verticalAlignment = Alignment.CenterVertically) {
                 Text("Persona", color = Accent, fontWeight = FontWeight.SemiBold, fontSize = 12.sp)
                 Text(" · ${ui.selectedPersonaName}", color = Muted, fontSize = 11.sp,
                     maxLines = 1, overflow = TextOverflow.Ellipsis)
             }
-            TextButton(onClick = controller::openGuidance,
+            TextButton(onClick = controller::openGuidance, enabled = !ui.busy,
                 contentPadding = PaddingValues(horizontal = 6.dp, vertical = 4.dp)) {
                 Text("How to Repli", color = Accent, fontSize = 11.sp)
             }

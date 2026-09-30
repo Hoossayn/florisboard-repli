@@ -94,6 +94,7 @@ data class RepliReplyUiState(
     val status: String = "",
     val generationError: String? = null,
     val busy: Boolean = false,
+    val generating: Boolean = false,
     val reading: Boolean = false,
     val confirm: RepliConfirmChip? = null,
     val suggestions: List<String> = emptyList(),
@@ -915,6 +916,9 @@ class RepliReplyOrchestrator(
                 if (state.awaitingKeyboardReturn) showKeyboard()
                 generate(state)
             }
+            ReplyPhase.GENERATING -> {
+                if (moreRepliesExpanded) showRepliesPanel() else showTypingPanel()
+            }
             ReplyPhase.ERROR -> {
                 if (state.awaitingKeyboardReturn) showKeyboard()
                 showRepliesPanel()
@@ -1047,7 +1051,7 @@ class RepliReplyOrchestrator(
         pendingMore = more
         ReplyCaptureSession.update(state.id) {
             it.copy(phase = ReplyPhase.GENERATING, replies = if (more) state.replies else emptyList(),
-                message = "Preparing cloud replies…", generationError = null)
+                message = "Preparing your Repli ideas…", generationError = null)
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
@@ -1094,7 +1098,7 @@ class RepliReplyOrchestrator(
         val keep = if (more) state.replies else emptyList()
         ReplyCaptureSession.update(state.id) {
             it.copy(phase = ReplyPhase.GENERATING, replies = keep,
-                message = "Generating cloud replies…", generationError = null)
+                message = "Finding your Repli ideas…", generationError = null)
         }
         generation = scope.launch(Dispatchers.IO) {
             try {
@@ -1258,6 +1262,7 @@ class RepliReplyOrchestrator(
         mutable.value = current.copy(
             active = active,
             busy = session?.busy == true,
+            generating = session?.phase == ReplyPhase.GENERATING,
             reading = session?.phase == ReplyPhase.READING && session.viewport == null,
             status = when {
                 session == null && !current.active -> ""

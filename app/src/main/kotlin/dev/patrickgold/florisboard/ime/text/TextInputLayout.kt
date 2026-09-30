@@ -36,6 +36,7 @@ import dev.patrickgold.florisboard.ime.smartbar.IncognitoDisplayMode
 import dev.patrickgold.florisboard.ime.smartbar.InlineSuggestionsStyleCache
 import dev.patrickgold.florisboard.ime.smartbar.Smartbar
 import dev.patrickgold.florisboard.repli.ime.RepliInlineGuidance
+import dev.patrickgold.florisboard.repli.ime.RepliInlineGenerationBanner
 import dev.patrickgold.florisboard.repli.ime.RepliReadingBanner
 import dev.patrickgold.florisboard.repli.ime.RepliInlineSuggestionRow
 import dev.patrickgold.florisboard.repli.ime.RepliInlineToneBar
@@ -75,12 +76,16 @@ fun TextInputLayout(
         }
         if (repliUi?.guidanceOpen == true) {
             RepliInlineGuidance()
-        } else if (repliUi?.suggestions?.isNotEmpty() == true) {
+        } else if (repliUi?.generating == true || repliUi?.suggestions?.isNotEmpty() == true) {
             RepliInlineToneBar()
         }
         Smartbar()
-        if (repliUi?.guidanceOpen != true && repliUi?.suggestions?.isNotEmpty() == true) {
-            RepliInlineSuggestionRow()
+        if (repliUi?.guidanceOpen != true) {
+            when {
+                repliUi?.generating == true && repliUi.suggestions.isEmpty() ->
+                    RepliInlineGenerationBanner()
+                repliUi?.suggestions?.isNotEmpty() == true -> RepliInlineSuggestionRow()
+            }
         }
         if (isActionsOverflowVisible) {
             QuickActionsOverflowPanel()

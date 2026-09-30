@@ -18,7 +18,11 @@ object CapturedContactProfileMatcher {
         val primary = local ?: ai
             ?: return null
         val key = identityKey(primary)
-        profiles.firstOrNull { identityKey(it.name) == key }?.let { return Result.Existing(it) }
+        val exact = profiles.filter { profile ->
+            (listOf(profile.name) + profile.nameAliases).any { identityKey(it) == key }
+        }
+        if (exact.size == 1) return Result.Existing(exact.single())
+        if (exact.size > 1) return null
 
         // If an earlier AI reading saved a close misspelling, the two readings from this
         // one capture provide evidence that its saved profile represents this chat.
@@ -39,8 +43,7 @@ object CapturedContactProfileMatcher {
         }
     }
 
-    private fun identityKey(name: String): String = name.lowercase()
-        .filter(Char::isLetterOrDigit)
+    private fun identityKey(name: String): String = CapturedContactName.identityKey(name)
 
     private fun nearlySameName(left: String, right: String): Boolean {
         if (left.length < MIN_FUZZY_LENGTH || right.length < MIN_FUZZY_LENGTH) return false

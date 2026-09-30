@@ -64,6 +64,21 @@ class CapturedContactProfileMatcherTest {
         ))
     }
 
+    @Test fun `old captured spelling finds renamed chat with the same profile ID`() {
+        val renamed = profile("Abdulhakeem").copy(name = "Abdul Hakeem",
+            nameAliases = listOf("Abdulkareem"))
+        assertEquals(CapturedContactProfileMatcher.Result.Existing(renamed),
+            CapturedContactProfileMatcher.resolve("Abdulkareem", null, listOf(renamed)))
+        assertEquals(CapturedContactProfileMatcher.Result.Existing(renamed),
+            CapturedContactProfileMatcher.resolve("Abdul Hakeem", null, listOf(renamed)))
+    }
+
+    @Test fun `ambiguous captured alias is not silently merged`() {
+        val one = profile("Alex").copy(nameAliases = listOf("Alec"))
+        val two = profile("Alec")
+        assertNull(CapturedContactProfileMatcher.resolve("Alec", null, listOf(one, two)))
+    }
+
     private fun profile(name: String) = VoiceProfile(
         id = "profile-$name", name = name, relationship = "Added from AI capture",
         style = VoiceStyle.CASUAL,

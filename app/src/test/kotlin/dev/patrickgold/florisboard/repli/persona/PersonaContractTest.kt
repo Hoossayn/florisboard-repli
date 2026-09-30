@@ -20,6 +20,12 @@ class PersonaContractTest {
         assertEquals(profile, VoiceProfileCodec.decode(VoiceProfileCodec.encode(profile)))
     }
 
+    @Test fun `previous captured names survive chat storage`() {
+        val profile = VoiceProfile("same-profile-id", "Abdul Hakeem", "Friend",
+            VoiceStyle.WARM, "warm", listOf("Abdulkareem", "Abdul, Hakeem"))
+        assertEquals(profile, VoiceProfileCodec.decode(VoiceProfileCodec.encode(profile)))
+    }
+
     @Test fun `selected persona travels with approved reply context`() {
         val persona = Persona("flirty", "The Spark", "Playful, but respectful.",
             listOf("You just made me smile 😂"), VoiceStyle.CASUAL)

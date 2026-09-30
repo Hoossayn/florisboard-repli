@@ -2,6 +2,7 @@ package dev.patrickgold.florisboard.repli.identity
 
 /** Conservative boundary for an untrusted chat title returned by image reading. */
 object CapturedContactName {
+    fun identityKey(name: String): String = name.lowercase().filter(Char::isLetterOrDigit)
     private val genericTitles = setOf(
         "whatsapp", "telegram", "messenger", "messages", "chat", "online", "typing", "you",
         "5g", "4g", "lte", "volte",

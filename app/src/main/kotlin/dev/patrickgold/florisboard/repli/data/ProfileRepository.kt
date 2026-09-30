@@ -2,6 +2,7 @@ package dev.patrickgold.florisboard.repli.data
 
 import android.content.Context
 import dev.patrickgold.florisboard.repli.persona.Persona
+import dev.patrickgold.florisboard.repli.identity.CapturedContactName
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
 import dev.patrickgold.florisboard.repli.profile.VoiceStyle
 import java.util.UUID
@@ -52,8 +53,33 @@ class ProfileRepository(context: Context) {
         return updated
     }
 
-    fun findByName(name: String): VoiceProfile? = profiles().firstOrNull {
-        it.name.trim().equals(name.trim(), ignoreCase = true)
+    /** Keeps the profile ID (and its cloud memory) while retaining previous OCR spellings. */
+    fun rename(id: String, name: String): VoiceProfile? {
+        val normalized = CapturedContactName.prepare(name) ?: return null
+        val current = profiles()
+        val profile = current.firstOrNull { it.id == id } ?: return null
+        val key = CapturedContactName.identityKey(normalized)
+        if (current.any { other -> other.id != id &&
+                (listOf(other.name) + other.nameAliases).any {
+                    CapturedContactName.identityKey(it) == key
+                }
+            }) return null
+        val aliases = (profile.nameAliases + profile.name)
+            .filter { CapturedContactName.identityKey(it) != key }
+            .distinctBy(CapturedContactName::identityKey)
+            .takeLast(8)
+        val updated = profile.copy(name = normalized, nameAliases = aliases)
+        save(current.map { if (it.id == id) updated else it })
+        return updated
+    }
+
+    fun findByName(name: String): VoiceProfile? {
+        val key = CapturedContactName.identityKey(name)
+        return profiles().singleOrNull { profile ->
+            (listOf(profile.name) + profile.nameAliases).any {
+                CapturedContactName.identityKey(it) == key
+            }
+        }
     }
 
     fun findById(id: String): VoiceProfile? = profiles().firstOrNull { it.id == id }

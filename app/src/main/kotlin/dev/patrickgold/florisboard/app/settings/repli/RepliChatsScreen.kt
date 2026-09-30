@@ -8,11 +8,14 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.RadioButtonDefaults
 import androidx.compose.material3.Surface
@@ -29,16 +32,19 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import dev.patrickgold.florisboard.app.LocalNavController
+import dev.patrickgold.florisboard.R
 import dev.patrickgold.florisboard.app.Routes
 import dev.patrickgold.florisboard.repli.data.LearnedStyleRepository
 import dev.patrickgold.florisboard.repli.account.ProfileMemoryClient
 import dev.patrickgold.florisboard.repli.account.RepliFirebaseAccountManager
 import dev.patrickgold.florisboard.repli.data.ProfileRepository
+import dev.patrickgold.florisboard.repli.identity.CapturedContactName
 import dev.patrickgold.florisboard.repli.profile.VoiceProfile
 import dev.patrickgold.florisboard.repli.persona.Persona
 import dev.patrickgold.florisboard.repli.persona.PersonaRepository
@@ -60,6 +66,7 @@ fun RepliChatsScreen() {
     var removeError by remember { mutableStateOf<String?>(null) }
     var removing by remember { mutableStateOf(false) }
     var personaProfile by remember { mutableStateOf<VoiceProfile?>(null) }
+    var editNameProfile by remember { mutableStateOf<VoiceProfile?>(null) }
     val lifecycleOwner = LocalLifecycleOwner.current
     DisposableEffect(lifecycleOwner) {
         val observer = LifecycleEventObserver { _, event ->
@@ -103,8 +110,15 @@ fun RepliChatsScreen() {
                                     else "${persona.name} · ${style.messagesAnalyzed} writing examples",
                                     13, RepliStyle.muted)
                             }
-                            TextButton(onClick = { removeError = null; removeProfile = profile }) {
-                                RepliLabel("Remove", 14, RepliStyle.accent)
+                            IconButton(onClick = { editNameProfile = profile }) {
+                                Icon(painterResource(R.drawable.ic_repli_edit_name),
+                                    contentDescription = "Edit ${profile.name} name",
+                                    modifier = Modifier.size(22.dp), tint = RepliStyle.accent)
+                            }
+                            IconButton(onClick = { removeError = null; removeProfile = profile }) {
+                                Icon(painterResource(R.drawable.ic_repli_remove_chat),
+                                    contentDescription = "Remove ${profile.name}",
+                                    modifier = Modifier.size(22.dp), tint = RepliStyle.accent)
                             }
                         }
                         Spacer(Modifier.height(12.dp))
@@ -142,6 +156,11 @@ fun RepliChatsScreen() {
     if (addSheet) AddChatSheet(repository, personas,
         onSaved = { profiles = repository.profiles(); addSheet = false },
         onDismiss = { addSheet = false })
+    editNameProfile?.let { profile ->
+        EditChatNameSheet(profile, repository,
+            onSaved = { profiles = repository.profiles(); editNameProfile = null },
+            onDismiss = { editNameProfile = null })
+    }
     removeProfile?.let { profile ->
         AlertDialog(onDismissRequest = { removeProfile = null },
             title = { Text("Remove ${profile.name}?") },
@@ -184,6 +203,42 @@ fun RepliChatsScreen() {
             TextButton(onClick = { personaProfile = null }) { Text("Cancel", color = RepliStyle.muted) }
             Spacer(Modifier.height(12.dp))
         }
+    }
+}
+
+@Composable
+private fun EditChatNameSheet(profile: VoiceProfile, repository: ProfileRepository,
+    onSaved: () -> Unit, onDismiss: () -> Unit) {
+    var name by remember(profile.id) { mutableStateOf(profile.name) }
+    var error by remember(profile.id) { mutableStateOf<String?>(null) }
+    RepliSheet(onDismiss = onDismiss) {
+        RepliLabel("Edit chat name", 23, RepliStyle.ink, bold = true)
+        Spacer(Modifier.height(6.dp))
+        RepliLabel("Correct the name Repli read from this chat. Its replies and saved history stay with this chat.",
+            14, RepliStyle.muted)
+        Spacer(Modifier.height(18.dp))
+        RepliInput(name, { name = it; error = null }, "CHAT NAME", "e.g. Alex",
+            singleLine = true, maxLength = CapturedContactName.MAX_LENGTH, error = error)
+        Spacer(Modifier.height(10.dp))
+        RepliLabel("Repli will also recognize the previous captured name next time.",
+            12, RepliStyle.muted)
+        Spacer(Modifier.height(18.dp))
+        RepliAction("Save name", onClick = {
+            val normalized = CapturedContactName.prepare(name)
+            error = when {
+                normalized == null -> "Enter a valid chat name"
+                repository.profiles().any { other -> other.id != profile.id &&
+                    (listOf(other.name) + other.nameAliases).any {
+                        CapturedContactName.identityKey(it) == CapturedContactName.identityKey(normalized)
+                    }
+                } -> "This name belongs to another saved chat"
+                repository.rename(profile.id, normalized) == null -> "Could not save this name. Try again."
+                else -> null
+            }
+            if (error == null) onSaved()
+        })
+        TextButton(onClick = onDismiss) { Text("Cancel", color = RepliStyle.muted) }
+        Spacer(Modifier.height(12.dp))
     }
 }
 
